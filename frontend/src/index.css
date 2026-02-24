@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Hide scrollbar for mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Skeleton loading animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Safe area padding for iOS */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Custom button styles */
+.btn-primary {
+  @apply bg-primary-600 text-white px-4 py-2 rounded-lg font-medium 
+         hover:bg-primary-700 active:bg-primary-800 
+         disabled:bg-gray-300 disabled:cursor-not-allowed
+         transition-colors duration-200;
+}
+
+.btn-secondary {
+  @apply bg-white text-gray-700 px-4 py-2 rounded-lg font-medium 
+         border border-gray-300 hover:bg-gray-50 active:bg-gray-100
+         transition-colors duration-200;
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-4 py-3 rounded-lg border border-gray-300 
+         focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+         placeholder-gray-400 transition-all duration-200;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden;
+}
