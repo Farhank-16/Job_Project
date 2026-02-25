@@ -20,31 +20,47 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
+
+let isLoggingOut = false;
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('✅ RESPONSE OK:', response.config.url);
+    return response;
+  },
   (error) => {
-    const message = error.response?.data?.error || error.message || 'Something went wrong';
-    
-    // Handle specific errors
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+    const status = error.response?.status;
+    const url    = error.config?.url || '';
+
+    console.error('❌ RESPONSE ERROR:', url, 'Status:', status,
+      'Token in storage:', localStorage.getItem('token') ? 'EXISTS' : 'MISSING',
+      'Response:', error.response?.data);
+
+    if (status === 401) {
+      const isAuthRoute = url.includes('/auth/');
+
+      console.warn('401 detected | isAuthRoute:', isAuthRoute, '| isLoggingOut:', isLoggingOut);
+
+      if (!isAuthRoute && !isLoggingOut) {
+        isLoggingOut = true;
+        console.error('🚨 TRIGGERING LOGOUT — URL:', url);
+        localStorage.removeItem('token');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+        setTimeout(() => { isLoggingOut = false; }, 2000);
       }
-    } else if (error.response?.status === 403) {
+    } else if (status === 403) {
       if (error.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
         toast.error('Please subscribe to access this feature');
       }
-    } else if (error.response?.status >= 500) {
+    } else if (status >= 500) {
       toast.error('Server error. Please try again later.');
     }
-    
+
     return Promise.reject(error);
   }
 );

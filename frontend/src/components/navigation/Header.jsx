@@ -12,7 +12,7 @@ const Header = () => {
     const path = location.pathname;
     
     if (path.includes('/seeker')) {
-      if (path === '/seeker') return 'Dashboard';
+      if (path === '/seeker') return ' Dashboard';
       if (path.includes('/jobs')) return 'Find Jobs';
       if (path.includes('/applications')) return 'My Applications';
       if (path.includes('/profile')) return 'Profile';
@@ -21,11 +21,11 @@ const Header = () => {
     }
     
     if (path.includes('/employer')) {
-      if (path === '/employer') return 'Dashboard';
+      if (path === '/employer') return 'Employer Dashboard';
       if (path.includes('/post-job')) return 'Post Job';
       if (path.includes('/jobs')) return 'My Jobs';
       if (path.includes('/candidates')) return 'Find Candidates';
-      if (path.includes('/profile')) return 'Profile';
+      if (path.includes('/profile')) return 'Employer Profile';
       if (path.includes('/subscription')) return 'Subscription';
     }
 

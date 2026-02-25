@@ -1,7 +1,16 @@
 const db = require('../config/database');
 const matchingEngine = require('../services/matchingEngine');
-const { paginate } = require('../utils/helpers');
 const { getDistanceSQL, getMaxRadius } = require('../utils/haversine');
+
+/**
+ * Safe pagination helper (inline, no external dependency)
+ */
+const getPagination = (queryPage, queryLimit, defaultLimit = 10) => {
+  const page   = Math.max(1, parseInt(queryPage,  10) || 1);
+  const limit  = Math.min(100, Math.max(1, parseInt(queryLimit, 10) || defaultLimit));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+};
 
 /**
  * Create a new job
@@ -10,39 +19,16 @@ const createJob = async (req, res) => {
   try {
     const employerId = req.user.id;
     const {
-      title, description, skillId, jobType, salaryMin, salaryMax, salaryType,
-      area, city, state, latitude, longitude, radiusKm, vacancies,
-      availabilityRequired, experienceRequired, expiresAt,
+      title, description, skillId, jobType,
+      salaryMin, salaryMax, salaryType,
+      area, city, state, latitude, longitude,
+      radiusKm, vacancies, availabilityRequired,
+      experienceRequired, expiresAt,
     } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Job title is required' });
     }
-
-    // ✅ FIX: Convert undefined → null for ALL params
-    const params = [
-      employerId, 
-      title, 
-      description || null, 
-      parseInt(skillId) || null, 
-      jobType || 'full_time',
-      parseFloat(salaryMin) || null, 
-      parseFloat(salaryMax) || null, 
-      salaryType || 'monthly', 
-      area || null, 
-      city || null, 
-      state || null,
-      parseFloat(latitude) || req.user.latitude || null, 
-      parseFloat(longitude) || req.user.longitude || null,
-      parseInt(radiusKm) || 10, 
-      parseInt(vacancies) || 1, 
-      availabilityRequired || 'flexible',
-      parseInt(experienceRequired) || 0, 
-      expiresAt || null
-    ];
-
-    // ✅ Debug: Log params to see undefined values
-    console.log('Job params:', params.map((p, i) => ({ i, value: p, type: typeof p })));
 
     const [result] = await db.execute(
       `INSERT INTO jobs (
@@ -51,7 +37,17 @@ const createJob = async (req, res) => {
         latitude, longitude, radius_km, vacancies,
         availability_required, experience_required, expires_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      params
+      [
+        employerId, title, description ?? null, skillId ?? null, jobType || 'full_time',
+        salaryMin ?? null, salaryMax ?? null, salaryType || 'monthly',
+        area ?? null, city ?? null, state ?? null,
+        latitude ?? req.user.latitude ?? null,
+        longitude ?? req.user.longitude ?? null,
+        radiusKm || 10, vacancies || 1,
+        availabilityRequired || 'flexible',
+        experienceRequired || 0,
+        expiresAt ?? null,
+      ]
     );
 
     const [job] = await db.execute('SELECT * FROM jobs WHERE id = ?', [result.insertId]);
@@ -63,7 +59,7 @@ const createJob = async (req, res) => {
     });
   } catch (error) {
     console.error('Create Job Error:', error);
-    res.status(500).json({ error: 'Failed to create job', details: error.message });
+    res.status(500).json({ error: 'Failed to create job' });
   }
 };
 
@@ -72,17 +68,8 @@ const createJob = async (req, res) => {
  */
 const getJobs = async (req, res) => {
   try {
-    const { 
-      skillId, 
-      city, 
-      radius = 10,
-      jobType,
-      availability,
-      page = 1, 
-      limit = 10 
-    } = req.query;
-    
-    const offset = (parseInt(page) - 1) * parseInt(limit); // Inline calculation
+    const { skillId, city, radius = 10, jobType } = req.query;
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
 
     let query = `
       SELECT 
@@ -96,78 +83,60 @@ const getJobs = async (req, res) => {
       WHERE j.is_active = TRUE
         AND (j.expires_at IS NULL OR j.expires_at > NOW())
     `;
-    
     const params = [];
 
-    // Add filters
     if (skillId) {
       query += ` AND j.skill_id = ?`;
-      params.push(skillId);
+      params.push(Number(skillId));
     }
-
     if (city) {
       query += ` AND j.city LIKE ?`;
       params.push(`%${city}%`);
     }
-
     if (jobType) {
       query += ` AND j.job_type = ?`;
       params.push(jobType);
     }
 
-    let orderByClause = ` ORDER BY j.created_at DESC`;
-
-    // Distance filter
     if (req.user && req.user.latitude && req.user.longitude) {
-      const maxRadius = Math.min(parseInt(radius), getMaxRadius(req.user.subscription_status));
-      const distanceSQL = getDistanceSQL(req.user.latitude, req.user.longitude, 'j');
-      
+      const maxRadius = Math.min(Number(radius), getMaxRadius(req.user.subscription_status));
+      const distanceSQL = getDistanceSQL(req.user.latitude, req.user.longitude);
       query += ` AND ${distanceSQL} <= ?`;
       params.push(maxRadius);
-      orderByClause = ` ORDER BY ${distanceSQL} ASC`;
+      query += ` ORDER BY ${distanceSQL} ASC`;
+    } else {
+      query += ` ORDER BY j.created_at DESC`;
     }
 
-    // ✅ FIXED: Inline LIMIT/OFFSET - NO ? placeholders
-    query += `${orderByClause} LIMIT ${limit} OFFSET ${offset}`;
+    // Inline LIMIT/OFFSET as literals to avoid mysql2 prepared-statement type issues
+    query += ` LIMIT ${limit} OFFSET ${offset}`;
 
-    console.log('Jobs params:', params);
-    console.log('Jobs LIMIT/OFFSET:', limit, offset);
+    const [jobs] = await db.query(query, params);
 
-    const [jobs] = await db.execute(query, params);
-
-    // Count query (unchanged)
+    // Parameterized count query
     let countQuery = `
-      SELECT COUNT(*) as count FROM jobs j 
+      SELECT COUNT(*) as count FROM jobs j
       WHERE j.is_active = TRUE AND (j.expires_at IS NULL OR j.expires_at > NOW())
     `;
     const countParams = [];
     if (skillId) {
       countQuery += ` AND j.skill_id = ?`;
-      countParams.push(skillId);
+      countParams.push(Number(skillId));
     }
-    if (city) {
-      countQuery += ` AND j.city LIKE ?`;
-      countParams.push(`%${city}%`);
-    }
-    if (jobType) {
-      countQuery += ` AND j.job_type = ?`;
-      countParams.push(jobType);
-    }
-    
-    const [total] = await db.execute(countQuery, countParams);
+    const [total] = await db.query(countQuery, countParams);
 
     res.json({
       jobs,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
-        pages: Math.ceil(total[0].count / parseInt(limit)),
+        pages: Math.ceil(total[0].count / limit),
       },
     });
   } catch (error) {
     console.error('Get Jobs Error:', error);
-    res.status(500).json({ error: 'Failed to get jobs', details: error.message });
+    res.status(500).json({ error: 'Failed to get jobs' });
   }
 };
 
@@ -199,13 +168,11 @@ const getJob = async (req, res) => {
 
     const job = jobs[0];
 
-    // Increment view count
     await db.execute(
       'UPDATE jobs SET views_count = views_count + 1 WHERE id = ?',
       [id]
     );
 
-    // Check if user has applied
     let hasApplied = false;
     if (req.user && req.user.role === 'job_seeker') {
       const [applications] = await db.execute(
@@ -215,7 +182,6 @@ const getJob = async (req, res) => {
       hasApplied = applications.length > 0;
     }
 
-    // Hide employer contact if not subscribed
     if (!req.user || req.user.subscription_status !== 'active') {
       job.employer_mobile = null;
     }
@@ -240,7 +206,6 @@ const applyForJob = async (req, res) => {
     const { coverLetter } = req.body;
     const applicantId = req.user.id;
 
-    // Check subscription
     if (req.user.subscription_status !== 'active') {
       return res.status(403).json({
         error: 'Subscription required',
@@ -248,43 +213,33 @@ const applyForJob = async (req, res) => {
       });
     }
 
-    // Check if job exists and is active
     const [jobs] = await db.execute(
       'SELECT * FROM jobs WHERE id = ? AND is_active = TRUE',
       [jobId]
     );
-
     if (!jobs.length) {
       return res.status(404).json({ error: 'Job not found or inactive' });
     }
 
-    // Check if already applied
     const [existing] = await db.execute(
       'SELECT id FROM job_applications WHERE job_id = ? AND applicant_id = ?',
       [jobId, applicantId]
     );
-
     if (existing.length) {
       return res.status(400).json({ error: 'Already applied for this job' });
     }
 
-    // Create application
     await db.execute(
-      `INSERT INTO job_applications (job_id, applicant_id, cover_letter)
-       VALUES (?, ?, ?)`,
-      [jobId, applicantId, coverLetter]
+      `INSERT INTO job_applications (job_id, applicant_id, cover_letter) VALUES (?, ?, ?)`,
+      [jobId, applicantId, coverLetter ?? null]
     );
 
-    // Update applications count
     await db.execute(
       'UPDATE jobs SET applications_count = applications_count + 1 WHERE id = ?',
       [jobId]
     );
 
-    res.status(201).json({
-      success: true,
-      message: 'Application submitted successfully',
-    });
+    res.status(201).json({ success: true, message: 'Application submitted successfully' });
   } catch (error) {
     console.error('Apply Job Error:', error);
     res.status(500).json({ error: 'Failed to apply for job' });
@@ -292,25 +247,25 @@ const applyForJob = async (req, res) => {
 };
 
 /**
- * Get employer's posted jobs
+ * Get employer's posted jobs  (/api/jobs/my-jobs)
  */
 const getEmployerJobs = async (req, res) => {
   try {
     const employerId = req.user.id;
-    const { page = 1, limit = 10 } = req.query;
-    const { offset } = paginate(page, limit);
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
 
-    const sql = `SELECT 
-     j.*,
-     s.name as skill_name,
-     (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) as applications_count
-    FROM jobs j
-    LEFT JOIN skills s ON j.skill_id = s.id
-    WHERE j.employer_id = ?
-    ORDER BY j.created_at DESC
-    LIMIT ${limit} OFFSET ${offset}`;
-
-const [jobs] = await db.execute(sql, [employerId]);
+    const [jobs] = await db.query(
+      `SELECT 
+        j.*,
+        s.name as skill_name,
+        (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) as applications_count
+       FROM jobs j
+       LEFT JOIN skills s ON j.skill_id = s.id
+       WHERE j.employer_id = ?
+       ORDER BY j.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      [employerId]
+    );
 
     const [total] = await db.execute(
       'SELECT COUNT(*) as count FROM jobs WHERE employer_id = ?',
@@ -320,8 +275,8 @@ const [jobs] = await db.execute(sql, [employerId]);
     res.json({
       jobs,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
         pages: Math.ceil(total[0].count / limit),
       },
@@ -333,19 +288,17 @@ const [jobs] = await db.execute(sql, [employerId]);
 };
 
 /**
- * Get job applications
+ * Get job applications (employer)
  */
 const getJobApplications = async (req, res) => {
   try {
     const { id: jobId } = req.params;
     const employerId = req.user.id;
 
-    // Verify job belongs to employer
     const [jobs] = await db.execute(
       'SELECT id FROM jobs WHERE id = ? AND employer_id = ?',
       [jobId, employerId]
     );
-
     if (!jobs.length) {
       return res.status(404).json({ error: 'Job not found' });
     }
@@ -367,11 +320,8 @@ const getJobApplications = async (req, res) => {
       [jobId]
     );
 
-    // Hide mobile if not subscribed
     if (req.user.subscription_status !== 'active') {
-      applications.forEach(app => {
-        app.mobile = null;
-      });
+      applications.forEach(app => { app.mobile = null; });
     }
 
     res.json({ applications });
@@ -382,28 +332,26 @@ const getJobApplications = async (req, res) => {
 };
 
 /**
- * Update application status
+ * Update application status (employer)
  */
 const updateApplicationStatus = async (req, res) => {
   try {
     const { applicationId } = req.params;
     const { status, notes } = req.body;
 
-    // Verify application belongs to employer's job
     const [apps] = await db.execute(
       `SELECT ja.id FROM job_applications ja
        JOIN jobs j ON ja.job_id = j.id
        WHERE ja.id = ? AND j.employer_id = ?`,
       [applicationId, req.user.id]
     );
-
     if (!apps.length) {
       return res.status(404).json({ error: 'Application not found' });
     }
 
     await db.execute(
       `UPDATE job_applications SET status = ?, employer_notes = ? WHERE id = ?`,
-      [status, notes, applicationId]
+      [status, notes ?? null, applicationId]
     );
 
     res.json({ success: true, message: 'Application updated' });
@@ -414,19 +362,17 @@ const updateApplicationStatus = async (req, res) => {
 };
 
 /**
- * Update job
+ * Update job (employer)
  */
 const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    // Verify job belongs to employer
     const [jobs] = await db.execute(
       'SELECT id FROM jobs WHERE id = ? AND employer_id = ?',
       [id, req.user.id]
     );
-
     if (!jobs.length) {
       return res.status(404).json({ error: 'Job not found' });
     }
@@ -435,7 +381,7 @@ const updateJob = async (req, res) => {
       'title', 'description', 'skill_id', 'job_type', 'salary_min',
       'salary_max', 'salary_type', 'area', 'city', 'state', 'latitude',
       'longitude', 'radius_km', 'vacancies', 'availability_required',
-      'experience_required', 'is_active', 'expires_at'
+      'experience_required', 'is_active', 'expires_at',
     ];
 
     const setClause = [];
@@ -461,10 +407,7 @@ const updateJob = async (req, res) => {
 
     const [updatedJob] = await db.execute('SELECT * FROM jobs WHERE id = ?', [id]);
 
-    res.json({
-      success: true,
-      job: updatedJob[0],
-    });
+    res.json({ success: true, job: updatedJob[0] });
   } catch (error) {
     console.error('Update Job Error:', error);
     res.status(500).json({ error: 'Failed to update job' });
@@ -472,13 +415,12 @@ const updateJob = async (req, res) => {
 };
 
 /**
- * Delete job
+ * Delete job (employer)
  */
 const deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify job belongs to employer
     const [result] = await db.execute(
       'DELETE FROM jobs WHERE id = ? AND employer_id = ?',
       [id, req.user.id]
@@ -502,7 +444,6 @@ const searchCandidates = async (req, res) => {
   try {
     const filters = req.query;
     const candidates = await matchingEngine.findCandidatesForEmployer(req.user, filters);
-
     res.json({ candidates });
   } catch (error) {
     console.error('Search Candidates Error:', error);

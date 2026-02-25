@@ -2,8 +2,10 @@
  * Paginate results
  */
 const paginate = (page = 1, limit = 10) => {
-  const offset = (page - 1) * limit;
-  return { limit: parseInt(limit), offset };
+  const safePage = parseInt(page, 10) || 1;
+  const safeLimit = parseInt(limit, 10) || 10;
+  const offset = (safePage - 1) * safeLimit;
+  return { limit: safeLimit, offset };
 };
 
 /**

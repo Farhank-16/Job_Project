@@ -1,5 +1,14 @@
 const db = require('../config/database');
-const { paginate } = require('../utils/helpers');
+
+/**
+ * Safe pagination helper
+ */
+const getPagination = (queryPage, queryLimit, defaultLimit = 10) => {
+  const page  = Math.max(1, parseInt(queryPage,  10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(queryLimit, 10) || defaultLimit));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+};
 
 /**
  * Update user profile
@@ -8,82 +17,55 @@ const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const {
-      name,
-      email,
-      area,
-      city,
-      state,
-      pincode,
-      latitude,
-      longitude,
-      bio,
-      experienceYears,
-      availability,
-      expectedSalaryMin,
-      expectedSalaryMax,
+      name, email, area, city, state, pincode,
+      latitude, longitude, bio, experienceYears,
+      availability, expectedSalaryMin, expectedSalaryMax,
       skills,
     } = req.body;
 
-    // Handle undefined values by replacing them with null
-    const valuesToUpdate = [
-      name || null,
-      email || null,
-      area || null,
-      city || null,
-      state || null,
-      pincode || null,
-      latitude || null,
-      longitude || null,
-      bio || null,
-      experienceYears || null,
-      availability || null,
-      expectedSalaryMin || null,
-      expectedSalaryMax || null,
-      userId
-    ];
+    // Build SET dynamically — skip undefined fields entirely
+    // COALESCE(undefined, col) crashes mysql2; dynamic builder avoids it
+    const fields = [];
+    const params = [];
 
-    // Update user details with COALESCE to avoid undefined values
-    await db.execute(
-      `UPDATE users SET 
-        name = COALESCE(?, name),
-        email = COALESCE(?, email),
-        area = COALESCE(?, area),
-        city = COALESCE(?, city),
-        state = COALESCE(?, state),
-        pincode = COALESCE(?, pincode),
-        latitude = COALESCE(?, latitude),
-        longitude = COALESCE(?, longitude),
-        bio = COALESCE(?, bio),
-        experience_years = COALESCE(?, experience_years),
-        availability = COALESCE(?, availability),
-        expected_salary_min = COALESCE(?, expected_salary_min),
-        expected_salary_max = COALESCE(?, expected_salary_max),
-        profile_completed = TRUE
-      WHERE id = ?`,
-      valuesToUpdate
-    );
+    if (name             !== undefined) { fields.push('name = ?');                params.push(name); }
+    if (email            !== undefined) { fields.push('email = ?');               params.push(email); }
+    if (area             !== undefined) { fields.push('area = ?');                params.push(area); }
+    if (city             !== undefined) { fields.push('city = ?');                params.push(city); }
+    if (state            !== undefined) { fields.push('state = ?');               params.push(state); }
+    if (pincode          !== undefined) { fields.push('pincode = ?');             params.push(pincode); }
+    if (latitude         !== undefined) { fields.push('latitude = ?');            params.push(latitude); }
+    if (longitude        !== undefined) { fields.push('longitude = ?');           params.push(longitude); }
+    if (bio              !== undefined) { fields.push('bio = ?');                 params.push(bio); }
+    if (experienceYears  !== undefined) { fields.push('experience_years = ?');    params.push(experienceYears); }
+    if (availability     !== undefined) { fields.push('availability = ?');        params.push(availability); }
+    if (expectedSalaryMin!== undefined) { fields.push('expected_salary_min = ?'); params.push(expectedSalaryMin); }
+    if (expectedSalaryMax!== undefined) { fields.push('expected_salary_max = ?'); params.push(expectedSalaryMax); }
+
+    // Always mark profile as completed on update
+    fields.push('profile_completed = TRUE');
+    params.push(userId);
+
+    if (fields.length > 1) { // more than just profile_completed
+      await db.execute(
+        `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+        params
+      );
+    }
 
     // Update skills if provided
     if (skills && Array.isArray(skills)) {
-      // Remove existing skills
       await db.execute('DELETE FROM user_skills WHERE user_id = ?', [userId]);
-      
-      // Add new skills
+
       for (const skill of skills) {
         await db.execute(
           `INSERT INTO user_skills (user_id, skill_id, proficiency, years_experience)
            VALUES (?, ?, ?, ?)`,
-          [
-            userId,
-            skill.skillId,
-            skill.proficiency || 'beginner',  // Default proficiency if not provided
-            skill.yearsExperience || 0  // Default yearsExperience if not provided
-          ]
+          [userId, skill.skillId, skill.proficiency || 'beginner', skill.yearsExperience || 0]
         );
       }
     }
 
-    // Get updated user
     const [users] = await db.execute('SELECT * FROM users WHERE id = ?', [userId]);
 
     res.json({
@@ -107,16 +89,13 @@ const uploadProfilePhoto = async (req, res) => {
     }
 
     const photoUrl = `/uploads/${req.file.filename}`;
-    
+
     await db.execute(
       'UPDATE users SET profile_photo = ? WHERE id = ?',
       [photoUrl, req.user.id]
     );
 
-    res.json({
-      success: true,
-      photoUrl,
-    });
+    res.json({ success: true, photoUrl });
   } catch (error) {
     console.error('Upload Photo Error:', error);
     res.status(500).json({ error: 'Failed to upload photo' });
@@ -145,7 +124,6 @@ const getProfile = async (req, res) => {
 
     const user = users[0];
 
-    // Get skills
     const [skills] = await db.execute(
       `SELECT s.id, s.name, us.proficiency, us.years_experience
        FROM user_skills us
@@ -154,7 +132,6 @@ const getProfile = async (req, res) => {
       [id]
     );
 
-    // Check if requester can see contact info
     let canContact = false;
     if (req.user) {
       if (req.user.id === parseInt(id)) {
@@ -164,12 +141,13 @@ const getProfile = async (req, res) => {
       }
     }
 
-    res.json({
-      ...user,
-      skills,
-      canContact,
-      mobile: canContact ? (await db.execute('SELECT mobile FROM users WHERE id = ?', [id]))[0][0].mobile : null,
-    });
+    let mobile = null;
+    if (canContact) {
+      const [mobileRow] = await db.execute('SELECT mobile FROM users WHERE id = ?', [id]);
+      mobile = mobileRow[0]?.mobile ?? null;
+    }
+
+    res.json({ ...user, skills, canContact, mobile });
   } catch (error) {
     console.error('Get Profile Error:', error);
     res.status(500).json({ error: 'Failed to get profile' });
@@ -182,10 +160,10 @@ const getProfile = async (req, res) => {
 const getAppliedJobs = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { page = 1, limit = 10 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit); // Inline calculation
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
 
-    const [applications] = await db.execute(
+    // Use db.query() with inline LIMIT/OFFSET to avoid mysql2 prepared-statement bug
+    const [applications] = await db.query(
       `SELECT 
         ja.*,
         j.title, j.job_type, j.salary_min, j.salary_max,
@@ -198,8 +176,8 @@ const getAppliedJobs = async (req, res) => {
        LEFT JOIN skills s ON j.skill_id = s.id
        WHERE ja.applicant_id = ?
        ORDER BY ja.applied_at DESC
-       LIMIT ${limit} OFFSET ${offset}`, // ✅ INLINE NUMBERS - FIXED
-      [userId] // ✅ ONLY 1 param now
+       LIMIT ${limit} OFFSET ${offset}`,
+      [userId]
     );
 
     const [total] = await db.execute(
@@ -210,18 +188,17 @@ const getAppliedJobs = async (req, res) => {
     res.json({
       applications,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
-        pages: Math.ceil(total[0].count / parseInt(limit)),
+        pages: Math.ceil(total[0].count / limit),
       },
     });
   } catch (error) {
     console.error('Get Applied Jobs Error:', error);
-    res.status(500).json({ error: 'Failed to get applied jobs', details: error.message });
+    res.status(500).json({ error: 'Failed to get applied jobs' });
   }
 };
-
 
 /**
  * Update user location
@@ -234,15 +211,20 @@ const updateLocation = async (req, res) => {
       return res.status(400).json({ error: 'Latitude and longitude required' });
     }
 
+    // Dynamic builder for optional fields
+    const fields = ['latitude = ?', 'longitude = ?'];
+    const params = [latitude, longitude];
+
+    if (area    !== undefined) { fields.push('area = ?');    params.push(area); }
+    if (city    !== undefined) { fields.push('city = ?');    params.push(city); }
+    if (state   !== undefined) { fields.push('state = ?');   params.push(state); }
+    if (pincode !== undefined) { fields.push('pincode = ?'); params.push(pincode); }
+
+    params.push(req.user.id);
+
     await db.execute(
-      `UPDATE users SET 
-        latitude = ?, longitude = ?, 
-        area = COALESCE(?, area),
-        city = COALESCE(?, city),
-        state = COALESCE(?, state),
-        pincode = COALESCE(?, pincode)
-       WHERE id = ?`,
-      [latitude, longitude, area, city, state, pincode, req.user.id]
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      params
     );
 
     res.json({ success: true, message: 'Location updated' });

@@ -1,8 +1,24 @@
 const db = require('../config/database');
-const { paginate } = require('../utils/helpers');
 
 /**
- * Get dashboard stats - NOW INCLUDED
+ * Safe pagination helper
+ */
+const getPagination = (queryPage, queryLimit) => {
+  const page   = Math.max(1, parseInt(queryPage,  10) || 1);
+  const limit  = Math.min(100, Math.max(1, parseInt(queryLimit, 10) || 20));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+};
+
+// ─── IMPORTANT ───────────────────────────────────────────────────────────────
+// We use db.query() (not db.execute()) for all dynamic paginated queries.
+// db.execute() uses prepared statements which are strict about param types in
+// some mysql2 versions. db.query() uses the regular text protocol and avoids
+// ER_WRONG_ARGUMENTS entirely while still escaping values safely via `?`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get dashboard stats
  */
 const getDashboardStats = async (req, res) => {
   try {
@@ -45,39 +61,39 @@ const getDashboardStats = async (req, res) => {
 };
 
 /**
- * Get all users - FIXED
+ * Get all users
  */
 const getUsers = async (req, res) => {
   try {
-    const { role, search, page = 1, limit = 20 } = req.query;
-    const { offset } = paginate(page, limit);
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
+    const role   = req.query.role   || null;
+    const search = req.query.search || null;
 
     let query = `
-      SELECT id, mobile, name, email, role, area, city, 
-             is_verified, exam_passed, subscription_status, 
+      SELECT id, mobile, name, email, role, area, city,
+             is_verified, exam_passed, subscription_status,
              profile_completed, is_active, created_at
       FROM users WHERE role != 'admin'
     `;
     const params = [];
 
-    if (role && role !== '') {
+    if (role) {
       query += ` AND role = ?`;
       params.push(role);
     }
-
-    if (search && search !== '') {
+    if (search) {
       query += ` AND (name LIKE ? OR mobile LIKE ? OR city LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), offset);
+    query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
-    const [users] = await db.query(query, params); // FIXED: .query()
+    // Use db.query() to avoid prepared-statement type issues with LIMIT/OFFSET
+    const [users] = await db.query(query, params);
 
     let countQuery = `SELECT COUNT(*) as count FROM users WHERE role != 'admin'`;
     const countParams = [];
-    if (role && role !== '') {
+    if (role) {
       countQuery += ` AND role = ?`;
       countParams.push(role);
     }
@@ -86,10 +102,10 @@ const getUsers = async (req, res) => {
     res.json({
       users,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
-        pages: Math.ceil(total[0].count / parseInt(limit)),
+        pages: Math.ceil(total[0].count / limit),
       },
     });
   } catch (error) {
@@ -106,46 +122,51 @@ const updateUserStatus = async (req, res) => {
     const { id } = req.params;
     const { isActive, isVerified } = req.body;
 
-    // Validate user ID exists
-    const [user] = await db.execute('SELECT id FROM users WHERE id = ?', [id]);
-    if (user.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    // Build UPDATE dynamically — only set fields that were actually provided.
+    // This avoids passing undefined to mysql2 (it only accepts null for SQL NULL).
+    const fields = [];
+    const params = [];
+
+    if (isActive !== undefined) {
+      fields.push('is_active = ?');
+      params.push(isActive);
+    }
+    if (isVerified !== undefined) {
+      fields.push('is_verified = ?');
+      params.push(isVerified);
     }
 
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(id);
     await db.execute(
-      `UPDATE users SET 
-        is_active = ?, 
-        is_verified = ?
-       WHERE id = ?`,
-      [isActive === 'true' || isActive === true, isVerified === 'true' || isVerified === true, id]
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      params
     );
 
-    // Skip admin_logs if req.user missing (middleware issue)
-    try {
-      if (req.user && req.user.id) {
-        await db.execute(
-          `INSERT INTO admin_logs (admin_id, action, entity_type, entity_id, details)
-           VALUES (?, 'update_user_status', 'user', ?, ?)`,
-          [req.user.id, id, JSON.stringify({ isActive, isVerified })]
-        );
-      }
-    } catch (logError) {
-      console.log('Admin log failed (non-critical):', logError.message);
-    }
+    await db.execute(
+      `INSERT INTO admin_logs (admin_id, action, entity_type, entity_id, details)
+       VALUES (?, 'update_user_status', 'user', ?, ?)`,
+      [req.user.id, id, JSON.stringify({ isActive, isVerified })]
+    );
 
-    res.json({ success: true, message: 'User status updated' });
+    res.json({ success: true, message: 'User updated' });
   } catch (error) {
     console.error('Update User Status Error:', error);
-    res.status(500).json({ error: 'Failed to update user status', details: error.message });
+    res.status(500).json({ error: 'Failed to update user' });
   }
 };
+
 /**
- * Get all jobs - FIXED
+ * Get all jobs (admin)
  */
 const getAllJobs = async (req, res) => {
   try {
-    const { status, search, page = 1, limit = 20 } = req.query;
-    const { offset } = paginate(page, limit);
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
+    const status = req.query.status || null;
+    const search = req.query.search || null;
 
     let query = `
       SELECT j.*, u.name as employer_name, s.name as skill_name
@@ -156,36 +177,30 @@ const getAllJobs = async (req, res) => {
     `;
     const params = [];
 
-    if (status && status !== '' && ['active', 'inactive'].includes(status)) {
-      query += ` AND j.is_active = ?`;
-      params.push(status === 'active');
+    if (status === 'active') {
+      query += ` AND j.is_active = TRUE`;
+    } else if (status === 'inactive') {
+      query += ` AND j.is_active = FALSE`;
     }
 
-    if (search && search !== '') {
+    if (search) {
       query += ` AND (j.title LIKE ? OR j.city LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    query += ` ORDER BY j.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), offset);
+    query += ` ORDER BY j.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
-    const [jobs] = await db.query(query, params); // FIXED: .query()
+    const [jobs] = await db.query(query, params);
 
-    let countQuery = `SELECT COUNT(*) as count FROM jobs WHERE 1=1`;
-    const countParams = [];
-    if (status && status !== '' && ['active', 'inactive'].includes(status)) {
-      countQuery += ` AND is_active = ?`;
-      countParams.push(status === 'active');
-    }
-    const [total] = await db.query(countQuery, countParams);
+    const [total] = await db.execute('SELECT COUNT(*) as count FROM jobs');
 
     res.json({
       jobs,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
-        pages: Math.ceil(total[0].count / parseInt(limit)),
+        pages: Math.ceil(total[0].count / limit),
       },
     });
   } catch (error) {
@@ -195,18 +210,17 @@ const getAllJobs = async (req, res) => {
 };
 
 /**
- * Manage skills
+ * Get skills
  */
 const getSkills = async (req, res) => {
   try {
     const [skills] = await db.execute(
-      `SELECT s.*, 
+      `SELECT s.*,
         (SELECT COUNT(*) FROM user_skills WHERE skill_id = s.id) as users_count,
-        (SELECT COUNT(*) FROM jobs WHERE skill_id = s.id) as jobs_count,
-        (SELECT COUNT(*) FROM exams WHERE skill_id = s.id) as questions_count
+        (SELECT COUNT(*) FROM jobs       WHERE skill_id = s.id) as jobs_count,
+        (SELECT COUNT(*) FROM exams      WHERE skill_id = s.id) as questions_count
        FROM skills s ORDER BY s.name`
     );
-
     res.json({ skills });
   } catch (error) {
     console.error('Get Skills Error:', error);
@@ -217,73 +231,67 @@ const getSkills = async (req, res) => {
 const createSkill = async (req, res) => {
   try {
     const { name, category, description, icon } = req.body;
+    if (!name) return res.status(400).json({ error: 'Skill name required' });
 
-    if (!name) {
-      return res.status(400).json({ error: 'Skill name required' });
-    }
+    // undefined → null so mysql2 doesn't throw on optional fields
+    const safeCategory    = category    ?? null;
+    const safeDescription = description ?? null;
+    const safeIcon        = icon        ?? null;
 
     const [result] = await db.execute(
-      `INSERT INTO skills (name, category, description, icon) 
-       VALUES (?, ?, ?, ?)`,
-      [name, category || null, description || null, icon || null]
+      `INSERT INTO skills (name, category, description, icon) VALUES (?, ?, ?, ?)`,
+      [name, safeCategory, safeDescription, safeIcon]
     );
 
     res.status(201).json({
       success: true,
-      skill: { 
-        id: result.insertId, 
-        name, 
-        category, 
-        description, 
-        icon 
-      },
+      skill: { id: result.insertId, name, category: safeCategory, description: safeDescription, icon: safeIcon },
     });
   } catch (error) {
     console.error('Create Skill Error:', error);
-    res.status(500).json({ error: 'Failed to create skill', details: error.message });
+    res.status(500).json({ error: 'Failed to create skill' });
   }
 };
 
-/**
- * Update skill - FIXED column name & COALESCE issue
- */
 const updateSkill = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, category, description, icon, isActive } = req.body;
 
-    // Validate skill exists
-    const [skill] = await db.execute('SELECT id FROM skills WHERE id = ?', [id]);
-    if (skill.length === 0) {
-      return res.status(404).json({ error: 'Skill not found' });
+    // Build SET clause dynamically — skip fields that were not sent (undefined)
+    const fields = [];
+    const params = [];
+
+    if (name        !== undefined) { fields.push('name = ?');        params.push(name); }
+    if (category    !== undefined) { fields.push('category = ?');    params.push(category); }
+    if (description !== undefined) { fields.push('description = ?'); params.push(description); }
+    if (icon        !== undefined) { fields.push('icon = ?');        params.push(icon); }
+    if (isActive    !== undefined) { fields.push('is_active = ?');   params.push(isActive); }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
     }
 
+    params.push(id);
     await db.execute(
-      `UPDATE skills SET 
-        name = COALESCE(?, name),
-        category = COALESCE(?, category),
-        description = COALESCE(?, description),
-        icon = COALESCE(?, icon),
-        is_active = COALESCE(?, is_active)
-       WHERE id = ?`,
-      [name || null, category || null, description || null, icon || null, isActive === 'true' || isActive === true || null, id]
+      `UPDATE skills SET ${fields.join(', ')} WHERE id = ?`,
+      params
     );
 
-    res.json({ success: true, message: 'Skill updated successfully' });
+    res.json({ success: true, message: 'Skill updated' });
   } catch (error) {
     console.error('Update Skill Error:', error);
-    res.status(500).json({ error: 'Failed to update skill', details: error.message });
+    res.status(500).json({ error: 'Failed to update skill' });
   }
 };
 
-
 /**
- * Manage exam questions - FIXED
+ * Exam questions
  */
 const getQuestions = async (req, res) => {
   try {
-    const { skillId, page = 1, limit = 20 } = req.query;
-    const { offset } = paginate(page, limit);
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
+    const skillId = req.query.skillId ? Number(req.query.skillId) : null;
 
     let query = `
       SELECT e.*, s.name as skill_name
@@ -293,31 +301,30 @@ const getQuestions = async (req, res) => {
     `;
     const params = [];
 
-    if (skillId && skillId !== '') {
+    if (skillId) {
       query += ` AND e.skill_id = ?`;
-      params.push(parseInt(skillId));
+      params.push(skillId);
     }
 
-    query += ` ORDER BY e.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), offset);
+    query += ` ORDER BY e.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
-    const [questions] = await db.query(query, params); // FIXED: .query()
+    const [questions] = await db.query(query, params);
 
-    let countQuery = `SELECT COUNT(*) as count FROM exams WHERE 1=1`;
+    let countQuery  = 'SELECT COUNT(*) as count FROM exams WHERE 1=1';
     const countParams = [];
-    if (skillId && skillId !== '') {
+    if (skillId) {
       countQuery += ` AND skill_id = ?`;
-      countParams.push(parseInt(skillId));
+      countParams.push(skillId);
     }
     const [total] = await db.query(countQuery, countParams);
 
     res.json({
       questions,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
-        pages: Math.ceil(total[0].count / parseInt(limit)),
+        pages: Math.ceil(total[0].count / limit),
       },
     });
   } catch (error) {
@@ -340,60 +347,45 @@ const createQuestion = async (req, res) => {
       [skillId, question, optionA, optionB, optionC, optionD, correctOption, difficulty || 'medium']
     );
 
-    res.status(201).json({
-      success: true,
-      questionId: result.insertId,
-    });
+    res.status(201).json({ success: true, questionId: result.insertId });
   } catch (error) {
     console.error('Create Question Error:', error);
     res.status(500).json({ error: 'Failed to create question' });
   }
 };
 
-/**
- * Update question - FIXED column names & param order
- */
 const updateQuestion = async (req, res) => {
   try {
     const { id } = req.params;
-    const { question, optionA, optionB, optionC, optionD, correctOption, difficulty, isActive, skillId } = req.body;
+    const { question, optionA, optionB, optionC, optionD, correctOption, difficulty, isActive } = req.body;
 
-    // Validate question exists
-    const [exam] = await db.execute('SELECT id FROM exams WHERE id = ?', [id]);
-    if (exam.length === 0) {
-      return res.status(404).json({ error: 'Question not found' });
+    // Build SET clause dynamically — skip fields that were not sent (undefined)
+    const fields = [];
+    const params = [];
+
+    if (question      !== undefined) { fields.push('question = ?');       params.push(question); }
+    if (optionA       !== undefined) { fields.push('option_a = ?');       params.push(optionA); }
+    if (optionB       !== undefined) { fields.push('option_b = ?');       params.push(optionB); }
+    if (optionC       !== undefined) { fields.push('option_c = ?');       params.push(optionC); }
+    if (optionD       !== undefined) { fields.push('option_d = ?');       params.push(optionD); }
+    if (correctOption !== undefined) { fields.push('correct_option = ?'); params.push(correctOption); }
+    if (difficulty    !== undefined) { fields.push('difficulty = ?');     params.push(difficulty); }
+    if (isActive      !== undefined) { fields.push('is_active = ?');      params.push(isActive); }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
     }
 
+    params.push(id);
     await db.execute(
-      `UPDATE exams SET 
-        skill_id = COALESCE(?, skill_id),
-        question = COALESCE(?, question),
-        option_a = COALESCE(?, option_a),
-        option_b = COALESCE(?, option_b),
-        option_c = COALESCE(?, option_c),
-        option_d = COALESCE(?, option_d),
-        correct_option = COALESCE(?, correct_option),
-        difficulty = COALESCE(?, difficulty),
-        is_active = COALESCE(?, is_active)
-       WHERE id = ?`,
-      [
-        skillId || null,
-        question || null, 
-        optionA || null, 
-        optionB || null, 
-        optionC || null, 
-        optionD || null, 
-        correctOption || null, 
-        difficulty || null, 
-        isActive === 'true' || isActive === true || null, 
-        id
-      ]
+      `UPDATE exams SET ${fields.join(', ')} WHERE id = ?`,
+      params
     );
 
-    res.json({ success: true, message: 'Question updated successfully' });
+    res.json({ success: true, message: 'Question updated' });
   } catch (error) {
     console.error('Update Question Error:', error);
-    res.status(500).json({ error: 'Failed to update question', details: error.message });
+    res.status(500).json({ error: 'Failed to update question' });
   }
 };
 
@@ -409,12 +401,13 @@ const deleteQuestion = async (req, res) => {
 };
 
 /**
- * Get all payments - FIXED
+ * Get all payments
  */
 const getPayments = async (req, res) => {
   try {
-    const { status, type, page = 1, limit = 20 } = req.query;
-    const { offset } = paginate(page, limit);
+    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
+    const status = req.query.status || null;
+    const type   = req.query.type   || null;
 
     let query = `
       SELECT p.*, u.name as user_name, u.mobile as user_mobile
@@ -424,40 +417,29 @@ const getPayments = async (req, res) => {
     `;
     const params = [];
 
-    if (status && status !== '') {
+    if (status) {
       query += ` AND p.status = ?`;
       params.push(status);
     }
-
-    if (type && type !== '') {
+    if (type) {
       query += ` AND p.payment_type = ?`;
       params.push(type);
     }
 
-    query += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), offset);
+    // Inline LIMIT/OFFSET as literals — bypasses prepared-statement type checks
+    query += ` ORDER BY p.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
-    const [payments] = await db.query(query, params); // FIXED: .query()
+    const [payments] = await db.query(query, params);
 
-    let countQuery = `SELECT COUNT(*) as count FROM payments WHERE 1=1`;
-    const countParams = [];
-    if (status && status !== '') {
-      countQuery += ` AND status = ?`;
-      countParams.push(status);
-    }
-    if (type && type !== '') {
-      countQuery += ` AND payment_type = ?`;
-      countParams.push(type);
-    }
-    const [total] = await db.query(countQuery, countParams);
+    const [total] = await db.execute('SELECT COUNT(*) as count FROM payments');
 
     res.json({
       payments,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total: total[0].count,
-        pages: Math.ceil(total[0].count / parseInt(limit)),
+        pages: Math.ceil(total[0].count / limit),
       },
     });
   } catch (error) {
@@ -472,52 +454,42 @@ const getPayments = async (req, res) => {
 const generateReport = async (req, res) => {
   try {
     const { type, startDate, endDate } = req.query;
+    const start = startDate || '2020-01-01';
+    const end   = endDate   || new Date().toISOString();
 
     let report = {};
 
     switch (type) {
       case 'users':
         const [userReport] = await db.execute(`
-          SELECT 
-            DATE(created_at) as date,
-            COUNT(*) as total,
+          SELECT DATE(created_at) as date, COUNT(*) as total,
             SUM(CASE WHEN role = 'job_seeker' THEN 1 ELSE 0 END) as job_seekers,
-            SUM(CASE WHEN role = 'employer' THEN 1 ELSE 0 END) as employers
-          FROM users
-          WHERE created_at BETWEEN ? AND ?
-          GROUP BY DATE(created_at)
-          ORDER BY date
-        `, [startDate || '2020-01-01', endDate || new Date().toISOString()]);
+            SUM(CASE WHEN role = 'employer'   THEN 1 ELSE 0 END) as employers
+          FROM users WHERE created_at BETWEEN ? AND ?
+          GROUP BY DATE(created_at) ORDER BY date
+        `, [start, end]);
         report = userReport;
         break;
 
       case 'revenue':
         const [revenueReport] = await db.execute(`
-          SELECT 
-            DATE(created_at) as date,
-            SUM(amount) as total_revenue,
-            SUM(CASE WHEN payment_type = 'subscription' THEN amount ELSE 0 END) as subscription_revenue,
-            SUM(CASE WHEN payment_type = 'skill_exam' THEN amount ELSE 0 END) as exam_revenue,
-            SUM(CASE WHEN payment_type = 'verified_badge' THEN amount ELSE 0 END) as badge_revenue
-          FROM payments
-          WHERE status = 'completed' AND created_at BETWEEN ? AND ?
-          GROUP BY DATE(created_at)
-          ORDER BY date
-        `, [startDate || '2020-01-01', endDate || new Date().toISOString()]);
+          SELECT DATE(created_at) as date, SUM(amount) as total_revenue,
+            SUM(CASE WHEN payment_type = 'subscription'    THEN amount ELSE 0 END) as subscription_revenue,
+            SUM(CASE WHEN payment_type = 'skill_exam'      THEN amount ELSE 0 END) as exam_revenue,
+            SUM(CASE WHEN payment_type = 'verified_badge'  THEN amount ELSE 0 END) as badge_revenue
+          FROM payments WHERE status = 'completed' AND created_at BETWEEN ? AND ?
+          GROUP BY DATE(created_at) ORDER BY date
+        `, [start, end]);
         report = revenueReport;
         break;
 
       case 'jobs':
         const [jobReport] = await db.execute(`
-          SELECT 
-            DATE(created_at) as date,
-            COUNT(*) as jobs_posted,
+          SELECT DATE(created_at) as date, COUNT(*) as jobs_posted,
             SUM(applications_count) as total_applications
-          FROM jobs
-          WHERE created_at BETWEEN ? AND ?
-          GROUP BY DATE(created_at)
-          ORDER BY date
-        `, [startDate || '2020-01-01', endDate || new Date().toISOString()]);
+          FROM jobs WHERE created_at BETWEEN ? AND ?
+          GROUP BY DATE(created_at) ORDER BY date
+        `, [start, end]);
         report = jobReport;
         break;
 

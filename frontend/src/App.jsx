@@ -13,7 +13,7 @@ import VerifyOTP from './pages/auth/VerifyOTP';
 import SelectRole from './pages/auth/SelectRole';
 import CompleteProfile from './pages/auth/CompleteProfile';
 
-// Lazy loaded pages for better performance
+// Lazy loaded pages
 const Home = lazy(() => import('./pages/Home'));
 const SeekerDashboard = lazy(() => import('./pages/seeker/Dashboard'));
 const SeekerProfile = lazy(() => import('./pages/seeker/Profile'));
@@ -42,40 +42,32 @@ const AdminSkills = lazy(() => import('./pages/admin/Skills'));
 const AdminQuestions = lazy(() => import('./pages/admin/Questions'));
 const AdminPayments = lazy(() => import('./pages/admin/Payments'));
 
-// Protected Route Component
+// ─── Protected Route ─────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return <LoadingSpinner fullScreen />;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (roles && !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
-  }
+  if (loading) return <LoadingSpinner fullScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
 
   return children;
 };
 
-// Public Route (redirects if logged in)
+// ─── Public Route ─────────────────────────────────────────────────────────────
+// FIX: Only redirect AFTER loading is complete AND user exists.
+// Old bug: loading=true, user=null → renders children → then user loads →
+// re-render → redirect. This caused race condition with Dashboard loading
+// before auth was confirmed, triggering 401 → force logout.
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return <LoadingSpinner fullScreen />;
-  }
+  // Wait for auth check to complete before deciding anything
+  if (loading) return <LoadingSpinner fullScreen />;
 
+  // Only redirect if we KNOW user is logged in (loading is done)
   if (user) {
-    if (user.role === 'admin') {
-      return <Navigate to="/admin" replace />;
-    }
-    if (user.role === 'employer') {
-      return <Navigate to="/employer" replace />;
-    }
+    if (user.role === 'admin')    return <Navigate to="/admin"    replace />;
+    if (user.role === 'employer') return <Navigate to="/employer" replace />;
     return <Navigate to="/seeker" replace />;
   }
 
@@ -86,23 +78,22 @@ function App() {
   return (
     <Suspense fallback={<LoadingSpinner fullScreen />}>
       <Routes>
-        {/* Public Routes */}
+        {/* Public home */}
         <Route path="/" element={<Home />} />
-        
+
         {/* Auth Routes */}
         <Route element={<AuthLayout />}>
+          {/* FIX: /verify-otp and /select-role should NOT be inside PublicRoute
+              because after verifyOTP sets user, PublicRoute redirects away
+              before navigation in the component can happen */}
           <Route path="/login" element={
             <PublicRoute><Login /></PublicRoute>
           } />
-          <Route path="/verify-otp" element={
-            <PublicRoute><VerifyOTP /></PublicRoute>
-          } />
-          <Route path="/select-role" element={
-            <PublicRoute><SelectRole /></PublicRoute>
-          } />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
+          <Route path="/select-role" element={<SelectRole />} />
         </Route>
 
-        {/* Complete Profile */}
+        {/* Complete Profile — protected but no role restriction */}
         <Route path="/complete-profile" element={
           <ProtectedRoute>
             <CompleteProfile />
@@ -156,11 +147,9 @@ function App() {
           <Route path="payments" element={<AdminPayments />} />
         </Route>
 
-        {/* Payment Success */}
+        {/* Payment */}
         <Route path="/payment-success" element={
-          <ProtectedRoute>
-            <PaymentSuccess />
-          </ProtectedRoute>
+          <ProtectedRoute><PaymentSuccess /></ProtectedRoute>
         } />
 
         {/* 404 */}
