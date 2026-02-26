@@ -19,7 +19,7 @@ module.exports = {
 
   msg91: {
     authKey:    process.env.MSG91_AUTH_KEY,
-    senderId:   process.env.MSG91_SENDER_ID  || 'JOBNET',
+    senderId:   process.env.MSG91_SENDER_ID  || 'JOBNEST',
     templateId: process.env.MSG91_TEMPLATE_ID,
     route:      process.env.MSG91_ROUTE      || '4',
   },
