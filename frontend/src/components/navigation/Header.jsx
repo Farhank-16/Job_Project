@@ -38,7 +38,7 @@ const Header = () => {
       if (path.includes('/payments')) return 'Payments';
     }
 
-    return 'RuralJobs';
+    return 'JobNest';
   };
 
   const showBackButton = () => {

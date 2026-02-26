@@ -32,7 +32,7 @@ const Home = () => {
           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
             <Briefcase className="w-6 h-6 text-primary-600" />
           </div>
-          <span className="text-xl font-bold">RuralJobs</span>
+          <span className="text-xl font-bold">JobNest</span>
         </div>
 
         <h1 className="text-3xl font-bold text-white leading-tight mb-4">
@@ -58,7 +58,7 @@ const Home = () => {
 
       {/* Features Section */}
       <div className="bg-white rounded-t-3xl pt-8 pb-12 px-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Why RuralJobs?</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-6">Why JobNest?</h2>
         
         <div className="space-y-4">
           {features.map((feature, index) => (

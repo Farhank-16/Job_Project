@@ -11,7 +11,7 @@ const AuthLayout = () => {
           <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
             <Briefcase className="w-7 h-7 text-primary-600" />
           </div>
-          <span className="text-2xl font-bold">RuralJobs</span>
+          <span className="text-2xl font-bold">JobNest</span>
         </div>
       </div>
       

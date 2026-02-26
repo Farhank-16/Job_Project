@@ -51,7 +51,7 @@ const ExamList = () => {
         key:         orderData.key,
         amount:      orderData.order.amount,
         currency:    orderData.order.currency,
-        name:        'RuralJobs',
+        name:        'JobNest',
         description: `Skill Exam: ${exam.name}`,
         order_id:    orderData.order.id,
         prefill:     { contact: user?.mobile },

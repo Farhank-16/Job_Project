@@ -75,7 +75,7 @@ const SelectRole = () => {
         />
       </div>
 
-      <p className="text-sm font-medium text-gray-700 mb-3">How will you use RuralJobs?</p>
+      <p className="text-sm font-medium text-gray-700 mb-3">How will you use JobNest?</p>
       
       <div className="space-y-3 mb-8">
         {roles.map((role) => {
