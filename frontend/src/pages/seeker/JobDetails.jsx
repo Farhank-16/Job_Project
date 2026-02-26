@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  MapPin, Clock, IndianRupee, Briefcase, Phone, 
-  CheckCircle2, Calendar, Users, ArrowRight 
+import {
+  MapPin, Clock, IndianRupee, Phone,
+  CheckCircle2, Users, ArrowRight
 } from 'lucide-react';
 import { jobService } from '../../services/jobService';
 import { useAuth } from '../../context/AuthContext';
@@ -12,20 +12,28 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
+// Employer ka naam ka pehla letter
+const NameAvatar = ({ name }) => {
+  const letter = name ? name.charAt(0).toUpperCase() : '?';
+  return (
+    <div className="w-16 h-16 rounded-xl bg-primary-500 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+      {letter}
+    </div>
+  );
+};
+
 const JobDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isSubscribed } = useAuth();
-  
-  const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState(false);
-  const [showApplyModal, setShowApplyModal] = useState(false);
-  const [coverLetter, setCoverLetter] = useState('');
+  const { isSubscribed } = useAuth();
 
-  useEffect(() => {
-    loadJob();
-  }, [id]);
+  const [job, setJob]             = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [applying, setApplying]   = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [coverLetter, setCoverLetter]       = useState('');
+
+  useEffect(() => { loadJob(); }, [id]);
 
   const loadJob = async () => {
     try {
@@ -45,13 +53,12 @@ const JobDetails = () => {
       navigate('/seeker/subscription');
       return;
     }
-
     setApplying(true);
     try {
       await jobService.applyForJob(id, coverLetter);
       toast.success('Application submitted successfully!');
       setShowApplyModal(false);
-      loadJob(); // Refresh to update hasApplied status
+      loadJob();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to apply');
     } finally {
@@ -61,36 +68,31 @@ const JobDetails = () => {
 
   const formatSalary = () => {
     if (!job.salary_min && !job.salary_max) return 'Negotiable';
-    if (job.salary_min && job.salary_max) {
+    if (job.salary_min && job.salary_max)
       return `₹${job.salary_min.toLocaleString()} - ₹${job.salary_max.toLocaleString()}`;
-    }
-    return job.salary_min ? `₹${job.salary_min.toLocaleString()}+` : `Up to ₹${job.salary_max.toLocaleString()}`;
+    return job.salary_min
+      ? `₹${job.salary_min.toLocaleString()}+`
+      : `Up to ₹${job.salary_max.toLocaleString()}`;
   };
 
-  if (loading) {
-    return <LoadingSpinner fullScreen />;
-  }
+  // Multiple skills support
+  const skillNames = (() => {
+    if (!job) return [];
+    if (Array.isArray(job.skill_names)) return job.skill_names;
+    if (typeof job.skill_names === 'string') return job.skill_names.split(',').map(s => s.trim());
+    if (job.skill_name) return [job.skill_name];
+    return [];
+  })();
 
-  if (!job) {
-    return null;
-  }
+  if (loading) return <LoadingSpinner fullScreen />;
+  if (!job)    return null;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
       <div className="bg-white px-4 py-6 border-b">
         <div className="flex items-start space-x-4">
-          {job.employer_photo ? (
-            <img 
-              src={job.employer_photo} 
-              alt={job.employer_name}
-              className="w-16 h-16 rounded-xl object-cover"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-xl bg-primary-100 flex items-center justify-center">
-              <Briefcase className="w-8 h-8 text-primary-600" />
-            </div>
-          )}
+          <NameAvatar name={job.employer_name} />
           <div className="flex-1">
             <h1 className="text-xl font-bold text-gray-900">{job.title}</h1>
             <div className="flex items-center mt-1">
@@ -102,19 +104,19 @@ const JobDetails = () => {
           </div>
         </div>
 
-        {/* Tags */}
+        {/* Skills + type tags */}
         <div className="flex flex-wrap gap-2 mt-4">
-          <Badge variant="primary">{job.skill_name || 'General'}</Badge>
+          {skillNames.length > 0
+            ? skillNames.map((name, i) => <Badge key={i} variant="primary">{name}</Badge>)
+            : <Badge variant="primary">General</Badge>
+          }
           <Badge>{job.job_type?.replace('_', ' ')}</Badge>
-          {job.vacancies > 1 && (
-            <Badge variant="info">{job.vacancies} openings</Badge>
-          )}
+          {job.vacancies > 1 && <Badge variant="info">{job.vacancies} openings</Badge>}
         </div>
       </div>
 
       {/* Details */}
       <div className="px-4 py-4 space-y-4">
-        {/* Key Info */}
         <div className="card p-4 space-y-3">
           <div className="flex items-center">
             <IndianRupee className="w-5 h-5 text-gray-400 mr-3" />
@@ -123,18 +125,16 @@ const JobDetails = () => {
               <p className="font-medium">{formatSalary()} / {job.salary_type || 'month'}</p>
             </div>
           </div>
-
           <div className="flex items-center">
             <MapPin className="w-5 h-5 text-gray-400 mr-3" />
             <div>
               <p className="text-sm text-gray-500">Location</p>
               <p className="font-medium">
-                {job.area && `${job.area}, `}{job.city}
-                {job.distance && ` (${job.distance.toFixed(1)} km away)`}
+                {[job.area, job.city].filter(Boolean).join(', ')}
+                {job.distance != null && ` (${Number(job.distance).toFixed(1)} km away)`}
               </p>
             </div>
           </div>
-
           <div className="flex items-center">
             <Clock className="w-5 h-5 text-gray-400 mr-3" />
             <div>
@@ -142,7 +142,6 @@ const JobDetails = () => {
               <p className="font-medium">{job.experience_required || 0}+ years</p>
             </div>
           </div>
-
           <div className="flex items-center">
             <Users className="w-5 h-5 text-gray-400 mr-3" />
             <div>
@@ -152,7 +151,6 @@ const JobDetails = () => {
           </div>
         </div>
 
-        {/* Description */}
         <div className="card p-4">
           <h3 className="font-semibold text-gray-900 mb-2">Job Description</h3>
           <p className="text-gray-600 whitespace-pre-line">
@@ -160,21 +158,16 @@ const JobDetails = () => {
           </p>
         </div>
 
-        {/* Contact Info (if subscribed) */}
         {isSubscribed && job.employer_mobile && (
           <div className="card p-4">
             <h3 className="font-semibold text-gray-900 mb-2">Contact Employer</h3>
-            <a 
-              href={`tel:${job.employer_mobile}`}
-              className="flex items-center text-primary-600"
-            >
+            <a href={`tel:${job.employer_mobile}`} className="flex items-center text-primary-600">
               <Phone className="w-5 h-5 mr-2" />
               {job.employer_mobile}
             </a>
           </div>
         )}
 
-        {/* Stats */}
         <div className="flex space-x-4 text-sm text-gray-500">
           <span>{job.views_count || 0} views</span>
           <span>{job.applications_count || 0} applications</span>
@@ -190,27 +183,16 @@ const JobDetails = () => {
             Already Applied
           </Button>
         ) : isSubscribed ? (
-          <Button fullWidth onClick={() => setShowApplyModal(true)}>
-            Apply Now
-          </Button>
+          <Button fullWidth onClick={() => setShowApplyModal(true)}>Apply Now</Button>
         ) : (
-          <Button 
-            fullWidth 
-            onClick={() => navigate('/seeker/subscription')}
-            icon={ArrowRight}
-            iconPosition="right"
-          >
+          <Button fullWidth onClick={() => navigate('/seeker/subscription')} icon={ArrowRight} iconPosition="right">
             Subscribe to Apply
           </Button>
         )}
       </div>
 
       {/* Apply Modal */}
-      <Modal
-        isOpen={showApplyModal}
-        onClose={() => setShowApplyModal(false)}
-        title="Apply for Job"
-      >
+      <Modal isOpen={showApplyModal} onClose={() => setShowApplyModal(false)} title="Apply for Job">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -224,11 +206,7 @@ const JobDetails = () => {
               className="input"
             />
           </div>
-          <Button 
-            fullWidth 
-            loading={applying}
-            onClick={handleApply}
-          >
+          <Button fullWidth loading={applying} onClick={handleApply}>
             Submit Application
           </Button>
         </div>

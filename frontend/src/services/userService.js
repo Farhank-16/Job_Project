@@ -17,7 +17,7 @@ export const userService = {
     return response.data;
   },
 
-  // Get user profile
+  // Get user profile by ID
   getProfile: async (id) => {
     const response = await api.get(`/users/${id}`);
     return response.data;

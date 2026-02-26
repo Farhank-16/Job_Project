@@ -1,13 +1,23 @@
 const db = require('../config/database');
 
-/**
- * Safe pagination helper
- */
 const getPagination = (queryPage, queryLimit, defaultLimit = 10) => {
-  const page  = Math.max(1, parseInt(queryPage,  10) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(queryLimit, 10) || defaultLimit));
+  const page   = Math.max(1, parseInt(queryPage,  10) || 1);
+  const limit  = Math.min(100, Math.max(1, parseInt(queryLimit, 10) || defaultLimit));
   const offset = (page - 1) * limit;
   return { page, limit, offset };
+};
+
+// FIX: Convert empty strings and undefined to null
+// Empty string '' crashes MySQL decimal/int columns
+const toNull = (val) => {
+  if (val === undefined || val === null || val === '') return null;
+  return val;
+};
+
+const toNullNum = (val) => {
+  if (val === undefined || val === null || val === '') return null;
+  const n = Number(val);
+  return isNaN(n) ? null : n;
 };
 
 /**
@@ -23,40 +33,35 @@ const updateProfile = async (req, res) => {
       skills,
     } = req.body;
 
-    // Build SET dynamically — skip undefined fields entirely
-    // COALESCE(undefined, col) crashes mysql2; dynamic builder avoids it
+    // Build SET dynamically — skip undefined, convert '' to null
     const fields = [];
     const params = [];
 
-    if (name             !== undefined) { fields.push('name = ?');                params.push(name); }
-    if (email            !== undefined) { fields.push('email = ?');               params.push(email); }
-    if (area             !== undefined) { fields.push('area = ?');                params.push(area); }
-    if (city             !== undefined) { fields.push('city = ?');                params.push(city); }
-    if (state            !== undefined) { fields.push('state = ?');               params.push(state); }
-    if (pincode          !== undefined) { fields.push('pincode = ?');             params.push(pincode); }
-    if (latitude         !== undefined) { fields.push('latitude = ?');            params.push(latitude); }
-    if (longitude        !== undefined) { fields.push('longitude = ?');           params.push(longitude); }
-    if (bio              !== undefined) { fields.push('bio = ?');                 params.push(bio); }
-    if (experienceYears  !== undefined) { fields.push('experience_years = ?');    params.push(experienceYears); }
-    if (availability     !== undefined) { fields.push('availability = ?');        params.push(availability); }
-    if (expectedSalaryMin!== undefined) { fields.push('expected_salary_min = ?'); params.push(expectedSalaryMin); }
-    if (expectedSalaryMax!== undefined) { fields.push('expected_salary_max = ?'); params.push(expectedSalaryMax); }
+    if (name             !== undefined) { fields.push('name = ?');                params.push(toNull(name)); }
+    if (email            !== undefined) { fields.push('email = ?');               params.push(toNull(email)); }
+    if (area             !== undefined) { fields.push('area = ?');                params.push(toNull(area)); }
+    if (city             !== undefined) { fields.push('city = ?');                params.push(toNull(city)); }
+    if (state            !== undefined) { fields.push('state = ?');               params.push(toNull(state)); }
+    if (pincode          !== undefined) { fields.push('pincode = ?');             params.push(toNull(pincode)); }
+    if (latitude         !== undefined) { fields.push('latitude = ?');            params.push(toNullNum(latitude)); }
+    if (longitude        !== undefined) { fields.push('longitude = ?');           params.push(toNullNum(longitude)); }
+    if (bio              !== undefined) { fields.push('bio = ?');                 params.push(toNull(bio)); }
+    if (experienceYears  !== undefined) { fields.push('experience_years = ?');    params.push(toNullNum(experienceYears)); }
+    if (availability     !== undefined) { fields.push('availability = ?');        params.push(toNull(availability)); }
+    if (expectedSalaryMin!== undefined) { fields.push('expected_salary_min = ?'); params.push(toNullNum(expectedSalaryMin)); }
+    if (expectedSalaryMax!== undefined) { fields.push('expected_salary_max = ?'); params.push(toNullNum(expectedSalaryMax)); }
 
-    // Always mark profile as completed on update
     fields.push('profile_completed = TRUE');
     params.push(userId);
 
-    if (fields.length > 1) { // more than just profile_completed
-      await db.execute(
-        `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
-        params
-      );
-    }
+    await db.execute(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      params
+    );
 
     // Update skills if provided
     if (skills && Array.isArray(skills)) {
       await db.execute('DELETE FROM user_skills WHERE user_id = ?', [userId]);
-
       for (const skill of skills) {
         await db.execute(
           `INSERT INTO user_skills (user_id, skill_id, proficiency, years_experience)
@@ -66,12 +71,45 @@ const updateProfile = async (req, res) => {
       }
     }
 
+    // FIX: Return full normalized user data so frontend updates immediately
     const [users] = await db.execute('SELECT * FROM users WHERE id = ?', [userId]);
+    const [userSkills] = await db.execute(
+      `SELECT s.id, s.name, us.proficiency, us.years_experience
+       FROM user_skills us JOIN skills s ON us.skill_id = s.id
+       WHERE us.user_id = ?`,
+      [userId]
+    );
+
+    const user = users[0];
 
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      user: users[0],
+      user: {
+        id:                  user.id,
+        mobile:              user.mobile,
+        name:                user.name,
+        email:               user.email,
+        role:                user.role,
+        profilePhoto:        user.profile_photo,
+        area:                user.area,
+        city:                user.city,
+        state:               user.state,
+        pincode:             user.pincode,
+        latitude:            user.latitude,
+        longitude:           user.longitude,
+        bio:                 user.bio,
+        experienceYears:     user.experience_years,
+        availability:        user.availability,
+        expectedSalaryMin:   user.expected_salary_min,
+        expectedSalaryMax:   user.expected_salary_max,
+        isVerified:          user.is_verified,
+        examPassed:          user.exam_passed,
+        subscriptionStatus:  user.subscription_status,
+        subscriptionEndDate: user.subscription_end_date,
+        profileCompleted:    user.profile_completed,
+        skills:              userSkills,
+      },
     });
   } catch (error) {
     console.error('Update Profile Error:', error);
@@ -89,11 +127,7 @@ const uploadProfilePhoto = async (req, res) => {
     }
 
     const photoUrl = `/uploads/${req.file.filename}`;
-
-    await db.execute(
-      'UPDATE users SET profile_photo = ? WHERE id = ?',
-      [photoUrl, req.user.id]
-    );
+    await db.execute('UPDATE users SET profile_photo = ? WHERE id = ?', [photoUrl, req.user.id]);
 
     res.json({ success: true, photoUrl });
   } catch (error) {
@@ -126,8 +160,7 @@ const getProfile = async (req, res) => {
 
     const [skills] = await db.execute(
       `SELECT s.id, s.name, us.proficiency, us.years_experience
-       FROM user_skills us
-       JOIN skills s ON us.skill_id = s.id
+       FROM user_skills us JOIN skills s ON us.skill_id = s.id
        WHERE us.user_id = ?`,
       [id]
     );
@@ -162,7 +195,6 @@ const getAppliedJobs = async (req, res) => {
     const userId = req.user.id;
     const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
 
-    // Use db.query() with inline LIMIT/OFFSET to avoid mysql2 prepared-statement bug
     const [applications] = await db.query(
       `SELECT 
         ja.*,
@@ -188,8 +220,7 @@ const getAppliedJobs = async (req, res) => {
     res.json({
       applications,
       pagination: {
-        page,
-        limit,
+        page, limit,
         total: total[0].count,
         pages: Math.ceil(total[0].count / limit),
       },
@@ -211,21 +242,16 @@ const updateLocation = async (req, res) => {
       return res.status(400).json({ error: 'Latitude and longitude required' });
     }
 
-    // Dynamic builder for optional fields
     const fields = ['latitude = ?', 'longitude = ?'];
     const params = [latitude, longitude];
 
-    if (area    !== undefined) { fields.push('area = ?');    params.push(area); }
-    if (city    !== undefined) { fields.push('city = ?');    params.push(city); }
-    if (state   !== undefined) { fields.push('state = ?');   params.push(state); }
-    if (pincode !== undefined) { fields.push('pincode = ?'); params.push(pincode); }
+    if (area    !== undefined) { fields.push('area = ?');    params.push(toNull(area)); }
+    if (city    !== undefined) { fields.push('city = ?');    params.push(toNull(city)); }
+    if (state   !== undefined) { fields.push('state = ?');   params.push(toNull(state)); }
+    if (pincode !== undefined) { fields.push('pincode = ?'); params.push(toNull(pincode)); }
 
     params.push(req.user.id);
-
-    await db.execute(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
-      params
-    );
+    await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, params);
 
     res.json({ success: true, message: 'Location updated' });
   } catch (error) {

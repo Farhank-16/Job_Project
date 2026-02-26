@@ -1,30 +1,38 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Clock, Award, CheckCircle2, Star } from 'lucide-react';
+import { MapPin, Award, CheckCircle2 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
+
+// Naam ka pehla letter
+const NameAvatar = ({ name }) => {
+  const letter = name ? name.charAt(0).toUpperCase() : '?';
+  return (
+    <div className="relative">
+      <div className="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+        {letter}
+      </div>
+      {/* Verified badge overlay */}
+    </div>
+  );
+};
 
 const CandidateCard = ({ candidate, onContact }) => {
   const navigate = useNavigate();
 
+  // Multiple skills — backend GROUP_CONCAT se comma-separated string aata hai
+  const skillList = (() => {
+    if (!candidate.skills) return [];
+    if (Array.isArray(candidate.skills)) return candidate.skills;
+    return candidate.skills.split(',').map(s => s.trim()).filter(Boolean);
+  })();
+
   return (
     <div className="card p-4">
       <div className="flex items-start space-x-3">
-        {/* Avatar */}
-        <div className="relative">
-          {candidate.profile_photo ? (
-            <img 
-              src={candidate.profile_photo} 
-              alt={candidate.name}
-              className="w-14 h-14 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center">
-              <span className="text-xl font-medium text-gray-600">
-                {candidate.name?.charAt(0) || '?'}
-              </span>
-            </div>
-          )}
+        {/* Avatar with verified indicator */}
+        <div className="relative flex-shrink-0">
+          <NameAvatar name={candidate.name} />
           {candidate.is_verified && (
             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
               <CheckCircle2 className="w-3 h-3 text-white" />
@@ -40,18 +48,18 @@ const CandidateCard = ({ candidate, onContact }) => {
               <Award className="w-4 h-4 text-yellow-500 flex-shrink-0" />
             )}
           </div>
-          
+
           <div className="flex items-center text-sm text-gray-500 mt-1">
-            <MapPin className="w-4 h-4 mr-1" />
+            <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
             <span className="truncate">
-              {candidate.area && `${candidate.area}, `}{candidate.city}
+              {[candidate.area, candidate.city].filter(Boolean).join(', ')}
             </span>
-            {candidate.distance && (
-              <span className="ml-2">• {candidate.distance.toFixed(1)} km</span>
+            {candidate.distance != null && (
+              <span className="ml-2 flex-shrink-0">• {Number(candidate.distance).toFixed(1)} km</span>
             )}
           </div>
 
-          <div className="flex items-center space-x-2 mt-2">
+          <div className="flex items-center flex-wrap gap-1 mt-2">
             <Badge variant="primary" size="xs">
               {candidate.experience_years || 0} yrs exp
             </Badge>
@@ -62,10 +70,13 @@ const CandidateCard = ({ candidate, onContact }) => {
             )}
           </div>
 
-          {candidate.skills && (
-            <p className="text-sm text-gray-600 mt-2 line-clamp-1">
-              Skills: {candidate.skills}
-            </p>
+          {/* Multiple skills */}
+          {skillList.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {skillList.map((skill, i) => (
+                <Badge key={i} variant="secondary" size="xs">{skill}</Badge>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -81,19 +92,11 @@ const CandidateCard = ({ candidate, onContact }) => {
           View Profile
         </Button>
         {candidate.canContact ? (
-          <Button
-            size="sm"
-            fullWidth
-            onClick={() => onContact?.(candidate)}
-          >
+          <Button size="sm" fullWidth onClick={() => onContact?.(candidate)}>
             Contact
           </Button>
         ) : (
-          <Button
-            size="sm"
-            fullWidth
-            onClick={() => navigate('/employer/subscription')}
-          >
+          <Button size="sm" fullWidth onClick={() => navigate('/employer/subscription')}>
             Unlock
           </Button>
         )}
