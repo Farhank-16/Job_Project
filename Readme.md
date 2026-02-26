@@ -34,7 +34,7 @@ A mobile-first full-stack web application for connecting rural workers with job 
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Farhank-16/Job_Project.git
 cd rural-job-platform
 ```
 
@@ -83,4 +83,4 @@ cp .env.example .env
 # Edit .env with your credentials
 nano .env
 ```
-### 5.
+### 5. 
