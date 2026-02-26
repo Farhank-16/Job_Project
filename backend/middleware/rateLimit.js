@@ -1,59 +1,15 @@
 const rateLimit = require('express-rate-limit');
 
-/**
- * Rate limiter for OTP requests
- */
-const otpLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 3, // 3 requests per minute
-  message: {
-    error: 'Too many OTP requests',
-    message: 'Please wait before requesting another OTP',
-    retryAfter: 60,
-  },
+const make = (windowMs, max, error) => rateLimit({
+  windowMs, max,
+  message:        { error },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders:   false,
 });
 
-/**
- * Rate limiter for login attempts
- */
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts
-  message: {
-    error: 'Too many login attempts',
-    message: 'Please try again after 15 minutes',
-  },
-});
+const otpLimiter     = make(60 * 1000,       3,   'Too many OTP requests. Please wait a minute.');
+const loginLimiter   = make(15 * 60 * 1000,  10,  'Too many login attempts. Please try after 15 minutes.');
+const apiLimiter     = make(15 * 60 * 1000,  200, 'Too many requests. Please slow down.');
+const paymentLimiter = make(60 * 1000,       5,   'Too many payment requests. Please wait before trying again.');
 
-/**
- * Rate limiter for API requests
- */
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: {
-    error: 'Rate limit exceeded',
-    message: 'Too many requests, please slow down',
-  },
-});
-
-/**
- * Rate limiter for payment requests
- */
-const paymentLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 5,
-  message: {
-    error: 'Too many payment requests',
-    message: 'Please wait before trying again',
-  },
-});
-
-module.exports = {
-  otpLimiter,
-  loginLimiter,
-  apiLimiter,
-  paymentLimiter,
-};
+module.exports = { otpLimiter, loginLimiter, apiLimiter, paymentLimiter };
