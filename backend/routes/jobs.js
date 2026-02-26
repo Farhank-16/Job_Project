@@ -1,43 +1,34 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const jobController = require('../controllers/jobController');
-const { authenticate, optionalAuth } = require('../middleware/auth');
-const { requireRole, requireSubscription, requireCompleteProfile } = require('../middleware/roleCheck');
+const job = require("../controllers/jobController");
+const { authenticate, optionalAuth } = require("../middleware/auth");
+const {
+  requireRole,
+  requireSubscription,
+  requireCompleteProfile,
+} = require("../middleware/roleCheck");
 
+const employer = [authenticate, requireRole("employer")];
+const seeker = [authenticate, requireRole("job_seeker")];
 
-// Get employer's own posted jobs
-router.get('/my-jobs', authenticate, requireRole('employer'), jobController.getEmployerJobs);
+// Static routes first — must come before /:id param routes
+router.get("/my-jobs", ...employer, job.getEmployerJobs);
+router.get("/recommended", ...seeker, job.getRecommendedJobs);
+router.get("/candidates", ...employer, job.searchCandidates);
+router.put(
+  "/applications/:applicationId",
+  ...employer,
+  job.updateApplicationStatus,
+);
 
-// Get recommended jobs (job seekers)
-router.get('/recommended', authenticate, requireRole('job_seeker'), jobController.getRecommendedJobs);
+router.get("/", optionalAuth, job.getJobs);
+router.post("/", ...employer, requireCompleteProfile, job.createJob);
 
-// Search candidates (employers)
-router.get('/candidates', authenticate, requireRole('employer'), jobController.searchCandidates);
-
-// Update application status — MUST be before /:id to avoid 'applications' being treated as an ID
-router.put('/applications/:applicationId', authenticate, requireRole('employer'), jobController.updateApplicationStatus);
-
-// Get all jobs (public)
-router.get('/', optionalAuth, jobController.getJobs);
-
-// Create job (employer only)
-router.post('/', authenticate, requireRole('employer'), requireCompleteProfile, jobController.createJob);
-
-// ── Param routes below — these must come LAST ────────────────────────────────
-
-// Get single job by ID
-router.get('/:id', optionalAuth, jobController.getJob);
-
-// Update job
-router.put('/:id', authenticate, requireRole('employer'), jobController.updateJob);
-
-// Delete job
-router.delete('/:id', authenticate, requireRole('employer'), jobController.deleteJob);
-
-// Apply for job
-router.post('/:id/apply', authenticate, requireRole('job_seeker'), requireSubscription, jobController.applyForJob);
-
-// Get applications for a specific job
-router.get('/:id/applications', authenticate, requireRole('employer'), jobController.getJobApplications);
+// Param routes last
+router.get("/:id", optionalAuth, job.getJob);
+router.put("/:id", ...employer, job.updateJob);
+router.delete("/:id", ...employer, job.deleteJob);
+router.post("/:id/apply", ...seeker, requireSubscription, job.applyForJob);
+router.get("/:id/applications", ...employer, job.getJobApplications);
 
 module.exports = router;
