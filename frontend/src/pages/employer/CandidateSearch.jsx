@@ -3,7 +3,7 @@ import { Search, Filter, MapPin, X } from 'lucide-react';
 import { jobService } from '../../services/jobService';
 import { skillService } from '../../services/skillService';
 import useAuth from '../../context/useAuth';
-import { useDebounce } from '../../hooks/useDebounce';
+import  useDebounce  from '../../hooks/useDebounce';
 import CandidateCard from '../../components/cards/CandidateCard';
 import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';

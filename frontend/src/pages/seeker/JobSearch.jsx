@@ -3,7 +3,7 @@ import { Search, Filter, MapPin, X } from 'lucide-react';
 import { jobService } from '../../services/jobService';
 import { skillService } from '../../services/skillService';
 import useAuth from '../../context/useAuth';
-import { useDebounce } from '../../hooks/useDebounce';
+import  useDebounce  from '../../hooks/useDebounce';
 import JobCard from '../../components/cards/JobCard';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
