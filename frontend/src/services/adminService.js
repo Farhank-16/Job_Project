@@ -1,79 +1,45 @@
-import api from './api';
+import api from "./api";
+
+const toParams = (filters) => new URLSearchParams(filters);
 
 export const adminService = {
-  // Dashboard
-  getDashboardStats: async () => {
-    const response = await api.get('/admin/dashboard');
-    return response.data;
-  },
+  getDashboardStats: () => api.get("/admin/dashboard").then((r) => r.data),
 
-  // Users
-  getUsers: async (filters = {}) => {
-    const params = new URLSearchParams(filters);
-    const response = await api.get(`/admin/users?${params}`);
-    return response.data;
-  },
+  getUsers: (f = {}) =>
+    api.get(`/admin/users?${toParams(f)}`).then((r) => r.data),
 
-  updateUserStatus: async (id, data) => {
-    const response = await api.put(`/admin/users/${id}/status`, data);
-    return response.data;
-  },
+  updateUserStatus: (id, data) =>
+    api.put(`/admin/users/${id}/status`, data).then((r) => r.data),
 
-  // Jobs
-  getAllJobs: async (filters = {}) => {
-    const params = new URLSearchParams(filters);
-    const response = await api.get(`/admin/jobs?${params}`);
-    return response.data;
-  },
+  getAllJobs: (f = {}) =>
+    api.get(`/admin/jobs?${toParams(f)}`).then((r) => r.data),
 
-  // Skills
-  getSkills: async () => {
-    const response = await api.get('/admin/skills');
-    return response.data;
-  },
+  getSkills: () => api.get("/admin/skills").then((r) => r.data),
 
-  createSkill: async (data) => {
-    const response = await api.post('/admin/skills', data);
-    return response.data;
-  },
+  createSkill: (data) => api.post("/admin/skills", data).then((r) => r.data),
 
-  updateSkill: async (id, data) => {
-    const response = await api.put(`/admin/skills/${id}`, data);
-    return response.data;
-  },
+  updateSkill: (id, data) =>
+    api.put(`/admin/skills/${id}`, data).then((r) => r.data),
 
-  // Questions
-  getQuestions: async (filters = {}) => {
-    const params = new URLSearchParams(filters);
-    const response = await api.get(`/admin/questions?${params}`);
-    return response.data;
-  },
+  getQuestions: (f = {}) =>
+    api.get(`/admin/questions?${toParams(f)}`).then((r) => r.data),
 
-  createQuestion: async (data) => {
-    const response = await api.post('/admin/questions', data);
-    return response.data;
-  },
+  createQuestion: (data) =>
+    api.post("/admin/questions", data).then((r) => r.data),
 
-  updateQuestion: async (id, data) => {
-    const response = await api.put(`/admin/questions/${id}`, data);
-    return response.data;
-  },
+  updateQuestion: (id, data) =>
+    api.put(`/admin/questions/${id}`, data).then((r) => r.data),
+  
+  deleteQuestion: (id) =>
+    api.delete(`/admin/questions/${id}`).then((r) => r.data),
 
-  deleteQuestion: async (id) => {
-    const response = await api.delete(`/admin/questions/${id}`);
-    return response.data;
-  },
-
-  // Payments
-  getPayments: async (filters = {}) => {
-    const params = new URLSearchParams(filters);
-    const response = await api.get(`/admin/payments?${params}`);
-    return response.data;
-  },
-
-  // Reports
-  generateReport: async (type, startDate, endDate) => {
-    const response = await api.get(`/admin/reports?type=${type}&startDate=${startDate}&endDate=${endDate}`);
-    return response.data;
-  },
+  getPayments: (f = {}) =>
+    api.get(`/admin/payments?${toParams(f)}`).then((r) => r.data),
+  
+  generateReport: (type, startDate, endDate) =>
+    api
+      .get(
+        `/admin/reports?type=${type}&startDate=${startDate}&endDate=${endDate}`,
+      )
+      .then((r) => r.data),
 };

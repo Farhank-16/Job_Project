@@ -1,27 +1,15 @@
-import api from './api';
+import api from "./api";
 
 export const examService = {
-  // Get available exams
-  getAvailableExams: async () => {
-    const response = await api.get('/exams');
-    return response.data;
-  },
+  getAvailableExams: () => api.get("/exams").then((r) => r.data),
 
-  // Start exam
-  startExam: async (skillId) => {
-    const response = await api.get(`/exams/${skillId}/start`);
-    return response.data;
-  },
+  startExam: (skillId) =>
+    api.get(`/exams/${skillId}/start`).then((r) => r.data),
 
-  // Submit exam
-  submitExam: async (attemptId, answers) => {
-    const response = await api.post(`/exams/attempt/${attemptId}/submit`, { answers });
-    return response.data;
-  },
-
-  // Get exam history
-  getExamHistory: async () => {
-    const response = await api.get('/exams/history');
-    return response.data;
-  },
+  submitExam: (attemptId, answers) =>
+    api
+      .post(`/exams/attempt/${attemptId}/submit`, { answers })
+      .then((r) => r.data),
+      
+  getExamHistory: () => api.get("/exams/history").then((r) => r.data),
 };

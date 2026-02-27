@@ -1,16 +1,10 @@
-import api from './api';
+import api from "./api";
 
 export const skillService = {
-  // Get all skills
-  getSkills: async (category) => {
-    const params = category ? `?category=${category}` : '';
-    const response = await api.get(`/skills${params}`);
-    return response.data;
-  },
+  getSkills: (category) =>
+    api
+      .get(`/skills${category ? `?category=${category}` : ""}`)
+      .then((r) => r.data),
 
-  // Get categories
-  getCategories: async () => {
-    const response = await api.get('/skills/categories');
-    return response.data;
-  },
+  getCategories: () => api.get("/skills/categories").then((r) => r.data),
 };
