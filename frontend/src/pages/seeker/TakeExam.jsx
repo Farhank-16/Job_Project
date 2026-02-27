@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { examService } from '../../services/examService';
 import { paymentService } from '../../services/paymentService';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import Button from '../../components/ui/Button';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';

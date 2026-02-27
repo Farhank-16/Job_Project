@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Navigation } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { userService } from '../../services/userService';
 import { skillService } from '../../services/skillService';
 import { useLocation as useGeoLocation } from '../../hooks/useLocation';

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navigation } from 'lucide-react';
 import { jobService } from '../../services/jobService';
 import { skillService } from '../../services/skillService';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { useLocation as useGeoLocation } from '../../hooks/useLocation';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';

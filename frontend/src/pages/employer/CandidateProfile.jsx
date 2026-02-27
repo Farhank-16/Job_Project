@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Phone, Clock, Award, CheckCircle2, Lock } from 'lucide-react';
 import { userService } from '../../services/userService';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';

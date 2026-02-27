@@ -2,17 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Eye, Users } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
 import { SkeletonList } from '../../components/ui/Skeleton';
 
 const AdminJobs = () => {
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [jobs, setJobs]             = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+
+  useEffect(() => {
+    // Reset to page 1 when filters change
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [search, statusFilter]);
 
   useEffect(() => {
     loadJobs();
-  }, [search, statusFilter]);
+  }, [search, statusFilter, pagination.page]);
 
   const loadJobs = async () => {
     setLoading(true);
@@ -20,8 +27,11 @@ const AdminJobs = () => {
       const data = await adminService.getAllJobs({
         search,
         status: statusFilter,
+        page:   pagination.page,
+        limit:  10,
       });
       setJobs(data.jobs);
+      setPagination(data.pagination);
     } catch (error) {
       console.error('Failed to load jobs:', error);
     } finally {
@@ -31,7 +41,7 @@ const AdminJobs = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Search */}
+      {/* Search & Filter */}
       <div className="sticky top-14 bg-white border-b z-30 px-4 py-3 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -43,21 +53,23 @@ const AdminJobs = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
           />
         </div>
-        <div className="flex space-x-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+        >
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
 
       {/* Jobs List */}
       <div className="px-4 py-4">
+        {!loading && (
+          <p className="text-sm text-gray-500 mb-3">{pagination.total} jobs found</p>
+        )}
+
         {loading ? (
           <SkeletonList count={5} />
         ) : (
@@ -97,6 +109,29 @@ const AdminJobs = () => {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && pagination.pages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <Button
+              variant="secondary"
+              disabled={pagination.page <= 1}
+              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-gray-500">
+              Page {pagination.page} of {pagination.pages}
+            </span>
+            <Button
+              variant="secondary"
+              disabled={pagination.page >= pagination.pages}
+              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+            >
+              Next
+            </Button>
           </div>
         )}
       </div>

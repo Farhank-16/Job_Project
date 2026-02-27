@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Home } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import  useAuth  from '../context/useAuth';
 import Button from '../components/ui/Button';
 
 const PaymentSuccess = () => {

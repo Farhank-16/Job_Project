@@ -4,7 +4,7 @@ import {
   Search, Briefcase, Award, CheckCircle2, 
   Crown, ArrowRight, MapPin 
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { jobService } from '../../services/jobService';
 import JobCard from '../../components/cards/JobCard';
 import Button from '../../components/ui/Button';

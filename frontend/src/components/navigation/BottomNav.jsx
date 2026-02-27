@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, Search, Briefcase, User, Users, FileText, Settings, CreditCard } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 
 const BottomNav = () => {
   const { user } = useAuth();

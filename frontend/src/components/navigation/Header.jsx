@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Bell, Menu } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 
 const Header = () => {
   const navigate = useNavigate();

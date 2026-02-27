@@ -5,7 +5,7 @@ import {
   User, ChevronRight, Lock 
 } from 'lucide-react';
 import { jobService } from '../../services/jobService';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';

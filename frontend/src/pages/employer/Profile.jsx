@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Mail, Edit2, Crown, LogOut } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { userService } from '../../services/userService';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';

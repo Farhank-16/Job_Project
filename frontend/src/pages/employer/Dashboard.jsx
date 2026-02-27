@@ -4,7 +4,7 @@ import {
   Plus, Briefcase, Users, Eye, 
   Crown, TrendingUp, MapPin 
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { jobService } from '../../services/jobService';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';

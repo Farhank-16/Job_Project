@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, MapPin, X } from 'lucide-react';
 import { jobService } from '../../services/jobService';
 import { skillService } from '../../services/skillService';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
 import JobCard from '../../components/cards/JobCard';
 import Button from '../../components/ui/Button';
@@ -14,29 +14,24 @@ import { SkeletonList } from '../../components/ui/Skeleton';
 
 const JobSearch = () => {
   const { isSubscribed } = useAuth();
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const [jobs, setJobs]             = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [showFilters, setShowFilters] = useState(false);
-  const [skills, setSkills] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pages: 1,
-    total: 0,
-  });
+  const [skills, setSkills]         = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
 
   const [filters, setFilters] = useState({
-    search: '',
+    search:  '',
     skillId: '',
-    city: '',
+    city:    '',
     jobType: '',
-    radius: isSubscribed ? 50 : 10,
+    radius:  isSubscribed ? 50 : 10,
   });
 
   const debouncedSearch = useDebounce(filters.search, 500);
 
-  useEffect(() => {
-    loadSkills();
-  }, []);
+  useEffect(() => { loadSkills(); }, []);
 
   useEffect(() => {
     loadJobs();
@@ -57,8 +52,8 @@ const JobSearch = () => {
       const response = await jobService.getJobs({
         ...filters,
         search: debouncedSearch,
-        page: pagination.page,
-        limit: 10,
+        page:   pagination.page,
+        limit:  10,
       });
       setJobs(response.jobs);
       setPagination(response.pagination);
@@ -69,14 +64,14 @@ const JobSearch = () => {
     }
   };
 
+  const setFilter = (key) => (e) => {
+    setPagination(prev => ({ ...prev, page: 1 })); // reset page on filter change
+    setFilters(prev => ({ ...prev, [key]: e.target.value }));
+  };
+
   const clearFilters = () => {
-    setFilters({
-      search: '',
-      skillId: '',
-      city: '',
-      jobType: '',
-      radius: isSubscribed ? 50 : 10,
-    });
+    setPagination(prev => ({ ...prev, page: 1 }));
+    setFilters({ search: '', skillId: '', city: '', jobType: '', radius: isSubscribed ? 50 : 10 });
   };
 
   const hasActiveFilters = filters.skillId || filters.city || filters.jobType;
@@ -91,7 +86,7 @@ const JobSearch = () => {
             <input
               type="text"
               value={filters.search}
-              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+              onChange={setFilter('search')}
               placeholder="Search jobs..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
@@ -99,8 +94,8 @@ const JobSearch = () => {
           <button
             onClick={() => setShowFilters(true)}
             className={`p-2.5 rounded-lg border ${
-              hasActiveFilters 
-                ? 'bg-primary-50 border-primary-500 text-primary-600' 
+              hasActiveFilters
+                ? 'bg-primary-50 border-primary-500 text-primary-600'
                 : 'border-gray-300 text-gray-600'
             }`}
           >
@@ -108,13 +103,12 @@ const JobSearch = () => {
           </button>
         </div>
 
-        {/* Active Filters */}
         {hasActiveFilters && (
           <div className="flex items-center space-x-2 mt-3 overflow-x-auto no-scrollbar">
             {filters.skillId && (
               <span className="inline-flex items-center px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm whitespace-nowrap">
                 {skills.find(s => s.id === parseInt(filters.skillId))?.name}
-                <button onClick={() => setFilters(prev => ({ ...prev, skillId: '' }))}>
+                <button onClick={() => setFilter('skillId')({ target: { value: '' } })}>
                   <X className="w-4 h-4 ml-1" />
                 </button>
               </span>
@@ -122,15 +116,12 @@ const JobSearch = () => {
             {filters.city && (
               <span className="inline-flex items-center px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm whitespace-nowrap">
                 {filters.city}
-                <button onClick={() => setFilters(prev => ({ ...prev, city: '' }))}>
+                <button onClick={() => setFilter('city')({ target: { value: '' } })}>
                   <X className="w-4 h-4 ml-1" />
                 </button>
               </span>
             )}
-            <button
-              onClick={clearFilters}
-              className="text-sm text-gray-500 whitespace-nowrap"
-            >
+            <button onClick={clearFilters} className="text-sm text-gray-500 whitespace-nowrap">
               Clear all
             </button>
           </div>
@@ -150,9 +141,7 @@ const JobSearch = () => {
           <SkeletonList count={5} />
         ) : jobs.length > 0 ? (
           <div className="space-y-3">
-            {jobs.map(job => (
-              <JobCard key={job.id} job={job} />
-            ))}
+            {jobs.map(job => <JobCard key={job.id} job={job} />)}
           </div>
         ) : (
           <EmptyState
@@ -163,7 +152,6 @@ const JobSearch = () => {
           />
         )}
 
-        {/* Load More */}
         {!loading && pagination.page < pagination.pages && (
           <div className="mt-4">
             <Button
@@ -178,41 +166,34 @@ const JobSearch = () => {
       </div>
 
       {/* Filters Modal */}
-      <Modal
-        isOpen={showFilters}
-        onClose={() => setShowFilters(false)}
-        title="Filter Jobs"
-      >
+      <Modal isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filter Jobs">
         <div className="space-y-4">
           <Select
             label="Skill"
             value={filters.skillId}
-            onChange={(e) => setFilters(prev => ({ ...prev, skillId: e.target.value }))}
+            onChange={setFilter('skillId')}
             options={skills.map(s => ({ value: s.id, label: s.name }))}
             placeholder="All Skills"
           />
-
           <Input
             label="City"
             value={filters.city}
-            onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
+            onChange={setFilter('city')}
             placeholder="Enter city name"
             icon={MapPin}
           />
-
           <Select
             label="Job Type"
             value={filters.jobType}
-            onChange={(e) => setFilters(prev => ({ ...prev, jobType: e.target.value }))}
+            onChange={setFilter('jobType')}
             options={[
-              { value: 'full_time', label: 'Full Time' },
-              { value: 'part_time', label: 'Part Time' },
-              { value: 'contract', label: 'Contract' },
+              { value: 'full_time',  label: 'Full Time' },
+              { value: 'part_time',  label: 'Part Time' },
+              { value: 'contract',   label: 'Contract' },
               { value: 'daily_wage', label: 'Daily Wage' },
             ]}
             placeholder="All Types"
           />
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Distance: {filters.radius} km
@@ -231,14 +212,9 @@ const JobSearch = () => {
               <span>{isSubscribed ? '100 km' : '10 km'}</span>
             </div>
           </div>
-
           <div className="flex space-x-3 pt-4">
-            <Button variant="secondary" fullWidth onClick={clearFilters}>
-              Clear
-            </Button>
-            <Button fullWidth onClick={() => setShowFilters(false)}>
-              Apply
-            </Button>
+            <Button variant="secondary" fullWidth onClick={clearFilters}>Clear</Button>
+            <Button fullWidth onClick={() => setShowFilters(false)}>Apply</Button>
           </div>
         </div>
       </Modal>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Award, CheckCircle, ArrowRight, Star } from 'lucide-react';
 import { examService } from '../services/examService';
 import { paymentService } from '../services/paymentService';
-import { useAuth } from '../context/AuthContext';
+import useAuth from '../context/useAuth';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';

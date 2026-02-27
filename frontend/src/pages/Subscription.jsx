@@ -7,7 +7,7 @@ import {
 import { paymentService } from '../services/paymentService';
 import { examService } from '../services/examService';
 import { skillService } from '../services/skillService';
-import { useAuth } from '../context/AuthContext';
+import  useAuth  from '../context/useAuth';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
