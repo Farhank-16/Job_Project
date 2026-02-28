@@ -1,79 +1,82 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Bell, Menu } from 'lucide-react';
+import { ChevronLeft, Bell } from 'lucide-react';
 import useAuth from '../../context/useAuth';
+import Logo from '../ui/Logo';
+
+const TITLES = {
+  '/seeker':                  null,
+  '/seeker/jobs':             'Find Jobs',
+  '/seeker/applications':     'My Applications',
+  '/seeker/profile':          'Profile',
+  '/seeker/exams':            'Skill Exams',
+  '/seeker/subscription':     'Subscription',
+  '/employer':                null,
+  '/employer/post-job':       'Post a Job',
+  '/employer/jobs':           'My Jobs',
+  '/employer/candidates':     'Find Candidates',
+  '/employer/profile':        'Profile',
+  '/employer/subscription':   'Subscription',
+  '/admin':                   null,
+  '/admin/users':             'Manage Users',
+  '/admin/jobs':              'Manage Jobs',
+  '/admin/skills':            'Manage Skills',
+  '/admin/questions':         'Exam Questions',
+  '/admin/payments':          'Payments',
+};
+
+const getTitle = (pathname) => {
+  if (TITLES[pathname] !== undefined) return TITLES[pathname]; // null = show logo
+  for (const [key, val] of Object.entries(TITLES)) {
+    if (key !== '/' && pathname.startsWith(key + '/')) return val || 'JobNest';
+  }
+  return 'JobNest';
+};
+
+const BASE_PATHS = ['/seeker', '/employer', '/admin'];
 
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
 
-  const getTitle = () => {
-    const path = location.pathname;
-    
-    if (path.includes('/seeker')) {
-      if (path === '/seeker') return ' Dashboard';
-      if (path.includes('/jobs')) return 'Find Jobs';
-      if (path.includes('/applications')) return 'My Applications';
-      if (path.includes('/profile')) return 'Profile';
-      if (path.includes('/exams')) return 'Skill Exams';
-      if (path.includes('/subscription')) return 'Subscription';
-    }
-    
-    if (path.includes('/employer')) {
-      if (path === '/employer') return 'Employer Dashboard';
-      if (path.includes('/post-job')) return 'Post Job';
-      if (path.includes('/jobs')) return 'My Jobs';
-      if (path.includes('/candidates')) return 'Find Candidates';
-      if (path.includes('/profile')) return 'Employer Profile';
-      if (path.includes('/subscription')) return 'Subscription';
-    }
-
-    if (path.includes('/admin')) {
-      if (path === '/admin') return 'Admin Dashboard';
-      if (path.includes('/users')) return 'Manage Users';
-      if (path.includes('/jobs')) return 'Manage Jobs';
-      if (path.includes('/skills')) return 'Manage Skills';
-      if (path.includes('/questions')) return 'Exam Questions';
-      if (path.includes('/payments')) return 'Payments';
-    }
-
-    return 'JobNest';
-  };
-
-  const showBackButton = () => {
-    const basePaths = ['/seeker', '/employer', '/admin'];
-    return !basePaths.includes(location.pathname);
-  };
+  const isBase  = BASE_PATHS.includes(location.pathname);
+  const title   = getTitle(location.pathname);
+  const showLogo = title === null; // null means home screen → show logo
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-40">
+    <header className="fixed top-0 left-0 right-0 bg-white z-40"
+      style={{ borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 0 #f1f5f9, 0 2px 8px rgba(0,0,0,0.04)' }}>
       <div className="flex items-center justify-between h-14 px-4">
+
         {/* Left */}
-        <div className="flex items-center">
-          {showBackButton() ? (
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 -ml-2 hover:bg-gray-100 rounded-full"
-            >
-              <ChevronLeft className="w-6 h-6" />
+        <div className="w-10">
+          {!isBase && (
+            <button onClick={() => navigate(-1)}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors -ml-1">
+              <ChevronLeft className="w-5 h-5 text-slate-700" />
             </button>
-          ) : (
-            <div className="w-8" />
           )}
         </div>
 
-        {/* Title */}
-        <h1 className="text-lg font-semibold text-gray-900">
-          {getTitle()}
-        </h1>
+        {/* Center */}
+        {showLogo
+          ? <Logo size="md" />
+          : <h1 className="font-display text-base font-bold text-slate-900">{title}</h1>
+        }
 
         {/* Right */}
-        <div className="flex items-center">
-          <button className="p-2 hover:bg-gray-100 rounded-full relative">
-            <Bell className="w-6 h-6 text-gray-600" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+        <div className="flex items-center gap-1">
+          <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 relative">
+            <Bell className="w-5 h-5 text-slate-500" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
           </button>
+          {user && (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-display font-bold ml-1"
+              style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+              {user.name?.charAt(0).toUpperCase() || '?'}
+            </div>
+          )}
         </div>
       </div>
     </header>
