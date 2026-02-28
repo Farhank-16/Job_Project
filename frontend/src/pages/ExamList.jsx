@@ -8,27 +8,20 @@ import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
 
+const MIN_QUESTIONS = 10; // exam only shows if skill has >= 10 questions
+
 const ExamCard = ({ exam, isSubscribed, onTake, highlight = false }) => (
-  <div className={`card-elevated p-4 transition-all ${
-    highlight ? 'border-l-4 border-l-amber-400' : ''
-  }`}>
+  <div className={`card-elevated p-4 ${highlight ? 'border-l-4 border-l-amber-400' : ''}`}>
     <div className="flex items-start gap-3">
-      {/* Icon */}
       <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{
-          background: exam.passed ? '#f0fdf4' : highlight ? '#fffbeb' : '#f1f5f9',
-        }}>
+        style={{ background: exam.passed ? '#f0fdf4' : highlight ? '#fffbeb' : '#f1f5f9' }}>
         <Award className="w-5 h-5"
           style={{ color: exam.passed ? '#16a34a' : highlight ? '#d97706' : '#94a3b8' }} />
       </div>
-
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="font-display font-bold text-slate-900 text-sm">{exam.name}</h3>
-          {highlight && !exam.passed && (
-            <span className="badge badge-amber">Your skill</span>
-          )}
+          {highlight && !exam.passed && <span className="badge badge-amber">Your skill</span>}
           {exam.passed && (
             <span className="badge badge-green flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" /> Passed
@@ -41,28 +34,21 @@ const ExamCard = ({ exam, isSubscribed, onTake, highlight = false }) => (
     </div>
 
     {!exam.passed && (
-      <button
-        onClick={() => onTake(exam)}
+      <button onClick={() => onTake(exam)}
         className={`mt-3 w-full py-2.5 text-sm font-display font-bold rounded-xl transition-all active:scale-[0.97] flex items-center justify-center gap-1.5 ${
-          isSubscribed
-            ? highlight
-              ? 'btn-primary'
-              : 'btn-secondary'
-            : 'btn-secondary opacity-70'
-        }`}
-      >
-        {isSubscribed ? (
-          <><Award className="w-4 h-4" /> Take Exam</>
-        ) : (
-          <><Lock className="w-4 h-4" /> Subscribe to Take Exam</>
-        )}
+          isSubscribed ? (highlight ? 'btn-primary' : 'btn-secondary') : 'btn-secondary opacity-70'
+        }`}>
+        {isSubscribed
+          ? <><Award className="w-4 h-4" /> Take Exam</>
+          : <><Lock className="w-4 h-4" /> Subscribe to Take Exam</>
+        }
       </button>
     )}
   </div>
 );
 
 const ExamList = () => {
-  const navigate              = useNavigate();
+  const navigate               = useNavigate();
   const { user, isSubscribed } = useAuth();
 
   const [exams, setExams]           = useState([]);
@@ -72,7 +58,10 @@ const ExamList = () => {
 
   useEffect(() => {
     examService.getAvailableExams()
-      .then(({ exams }) => setExams(exams))
+      .then(({ exams }) => {
+        // Only show exams where skill has >= 10 questions
+        setExams(exams.filter(e => (e.question_count || 0) >= MIN_QUESTIONS));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -91,29 +80,23 @@ const ExamList = () => {
     try {
       const orderData = await paymentService.createExamOrder(exam.id);
       const response  = await paymentService.openRazorpay({
-        key:         orderData.key,
-        amount:      orderData.order.amount,
-        currency:    orderData.order.currency,
-        name:        'JobNest',
+        key: orderData.key, amount: orderData.order.amount,
+        currency: orderData.order.currency, name: 'JobNest',
         description: `Skill Exam: ${exam.name}`,
-        order_id:    orderData.order.id,
-        prefill:     { contact: user?.mobile },
-        theme:       { color: '#2563eb' },
+        order_id: orderData.order.id, prefill: { contact: user?.mobile },
+        theme: { color: '#2563eb' },
       });
       await paymentService.verifyPayment({
-        razorpay_order_id:   orderData.order.id,
+        razorpay_order_id: orderData.order.id,
         razorpay_payment_id: response.razorpay_payment_id,
-        razorpay_signature:  response.razorpay_signature,
+        razorpay_signature: response.razorpay_signature,
       });
       toast.success('Payment done! Starting exam...');
       setSelectedExam(null);
       navigate(`/seeker/exams/${exam.id}`);
     } catch (error) {
-      if (error.message !== 'Payment cancelled')
-        toast.error('Payment failed. Please try again.');
-    } finally {
-      setPaying(false);
-    }
+      if (error.message !== 'Payment cancelled') toast.error('Payment failed. Please try again.');
+    } finally { setPaying(false); }
   };
 
   if (loading) return <LoadingSpinner fullScreen />;
@@ -123,8 +106,6 @@ const ExamList = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-
-      {/* Header */}
       <div className="px-4 py-5 space-y-4">
 
         {/* Banner */}
@@ -133,9 +114,7 @@ const ExamList = () => {
           <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white opacity-10 -translate-y-8 translate-x-8" />
           <Award className="w-8 h-8 text-amber-100 mb-2" />
           <h1 className="font-display text-xl font-extrabold">Skill Certifications</h1>
-          <p className="text-amber-100 text-sm mt-1">
-            Pass exams, earn badges, stand out to employers
-          </p>
+          <p className="text-amber-100 text-sm mt-1">Pass exams, earn badges, stand out to employers</p>
         </div>
 
         {/* Subscription notice */}
@@ -146,34 +125,25 @@ const ExamList = () => {
               <p className="font-display font-bold text-slate-800 text-sm">Subscription Required</p>
               <p className="text-xs text-slate-500 mt-0.5">Upgrade to access all skill exams</p>
             </div>
-            <button
-              onClick={() => navigate('/seeker/subscription')}
-              className="flex items-center gap-1 text-purple-600 font-semibold text-sm flex-shrink-0"
-            >
+            <button onClick={() => navigate('/seeker/subscription')}
+              className="flex items-center gap-1 text-purple-600 font-semibold text-sm flex-shrink-0">
               Upgrade <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Benefits strip */}
+        {/* Benefits */}
         <div className="card p-4" style={{ borderLeft: '4px solid #d97706' }}>
-          <p className="font-display font-bold text-slate-800 text-sm mb-2">Benefits of Certification</p>
-          <div className="grid grid-cols-1 gap-1.5">
-            {[
-              'Priority in search results',
-              'Skill badge on your profile',
-              'Higher chances of getting hired',
-            ].map(b => (
-              <div key={b} className="flex items-center gap-2 text-xs text-slate-600">
-                <CheckCircle2 className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                {b}
-              </div>
-            ))}
-          </div>
+          <p className="font-display font-bold text-slate-800 text-sm mb-2">Why Get Certified?</p>
+          {['Priority in search results','Skill badge on your profile','Higher chances of getting hired'].map(b => (
+            <div key={b} className="flex items-center gap-2 text-xs text-slate-600 mb-1.5 last:mb-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />{b}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* My Skill Exams */}
+      {/* My skill exams */}
       {myExams.length > 0 && (
         <div className="px-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
@@ -181,23 +151,19 @@ const ExamList = () => {
             <h2 className="font-display font-bold text-slate-800 text-sm">Your Skills</h2>
           </div>
           <div className="space-y-3">
-            {myExams.map(exam => (
-              <ExamCard key={exam.id} exam={exam} isSubscribed={isSubscribed} onTake={handleTakeExam} highlight />
-            ))}
+            {myExams.map(e => <ExamCard key={e.id} exam={e} isSubscribed={isSubscribed} onTake={handleTakeExam} highlight />)}
           </div>
         </div>
       )}
 
-      {/* Other Exams */}
+      {/* Other exams */}
       {otherExams.length > 0 && (
         <div className="px-4 pb-4">
           <h2 className="font-display font-bold text-slate-800 text-sm mb-3">
             {myExams.length > 0 ? 'Other Exams' : 'Available Exams'}
           </h2>
           <div className="space-y-3">
-            {otherExams.map(exam => (
-              <ExamCard key={exam.id} exam={exam} isSubscribed={isSubscribed} onTake={handleTakeExam} />
-            ))}
+            {otherExams.map(e => <ExamCard key={e.id} exam={e} isSubscribed={isSubscribed} onTake={handleTakeExam} />)}
           </div>
         </div>
       )}
@@ -208,48 +174,33 @@ const ExamList = () => {
             <Award className="w-8 h-8 text-slate-300" />
           </div>
           <p className="font-display font-bold text-slate-700">No exams available</p>
-          <p className="text-slate-500 text-sm mt-1">Check back later</p>
+          <p className="text-slate-500 text-sm mt-1">Exams appear when a skill has 10+ questions</p>
         </div>
       )}
 
-      {/* Exam details Modal */}
+      {/* Pay modal */}
       <Modal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)}
         title={`${selectedExam?.name} Exam`}>
         {selectedExam && (
           <div className="space-y-4">
             <div className="card p-4 space-y-2">
-              {[
-                ['Questions', '10 Multiple Choice'],
-                ['Time Limit', '15 minutes'],
-                ['Pass Mark',  '60% (6/10 correct)'],
-                ['Fee',        '₹49 per attempt'],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between text-sm">
-                  <span className="text-slate-500">{label}</span>
-                  <span className="font-semibold text-slate-800">{value}</span>
+              {[['Questions','10 Multiple Choice'],['Time Limit','15 minutes'],['Pass Mark','60% (6/10)'],['Fee','₹49 per attempt']].map(([k,v]) => (
+                <div key={k} className="flex justify-between text-sm">
+                  <span className="text-slate-500">{k}</span>
+                  <span className="font-semibold text-slate-800">{v}</span>
                 </div>
               ))}
             </div>
-
             <div className="p-3 rounded-xl text-xs text-amber-700"
               style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
               Each attempt requires a new payment if you don't pass.
             </div>
-
-            <button
-              onClick={() => handlePayAndStart(selectedExam)}
-              disabled={paying}
-              className="btn-primary w-full py-4 text-base justify-between"
-              style={{ borderRadius: '12px' }}
-            >
-              {paying ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Processing...
-                </span>
-              ) : (
-                <><span>Pay ₹49 & Start Exam</span><ArrowRight className="w-5 h-5" /></>
-              )}
+            <button onClick={() => handlePayAndStart(selectedExam)} disabled={paying}
+              className="btn-primary w-full py-4 text-base justify-between" style={{ borderRadius: '12px' }}>
+              {paying
+                ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Processing...</span>
+                : <><span>Pay ₹49 & Start Exam</span><ArrowRight className="w-5 h-5" /></>
+              }
             </button>
           </div>
         )}
