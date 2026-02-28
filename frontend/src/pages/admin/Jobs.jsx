@@ -1,62 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, Users } from 'lucide-react';
+import { Search, MapPin, Eye, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { adminService } from '../../services/adminService';
-import Badge from '../../components/ui/Badge';
-import Button from '../../components/ui/Button';
 import { SkeletonList } from '../../components/ui/Skeleton';
 
+const STATUS_BADGE = {
+  true:  { bg: '#f0fdf4', color: '#15803d', label: 'Active' },
+  false: { bg: '#f1f5f9', color: '#64748b', label: 'Inactive' },
+};
+
 const AdminJobs = () => {
-  const [jobs, setJobs]             = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [search, setSearch]         = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [jobs, setJobs]         = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
+  const [status, setStatus]     = useState('');
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
 
   useEffect(() => {
-    // Reset to page 1 when filters change
-    setPagination(prev => ({ ...prev, page: 1 }));
-  }, [search, statusFilter]);
+    setPagination(p => ({ ...p, page: 1 }));
+  }, [search, status]);
 
-  useEffect(() => {
-    loadJobs();
-  }, [search, statusFilter, pagination.page]);
+  useEffect(() => { loadJobs(); }, [search, status, pagination.page]);
 
   const loadJobs = async () => {
     setLoading(true);
     try {
-      const data = await adminService.getAllJobs({
-        search,
-        status: statusFilter,
-        page:   pagination.page,
-        limit:  10,
-      });
+      const data = await adminService.getAllJobs({ search, status, page: pagination.page, limit: 10 });
       setJobs(data.jobs);
       setPagination(data.pagination);
-    } catch (error) {
-      console.error('Failed to load jobs:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Search & Filter */}
-      <div className="sticky top-14 bg-white border-b z-30 px-4 py-3 space-y-3">
+    <div className="min-h-screen bg-slate-50 pb-20">
+
+      {/* Sticky filters */}
+      <div className="sticky top-14 bg-white border-b border-slate-100 z-30 px-4 py-3 space-y-2.5">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
-            type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={e => setSearch(e.target.value)}
             placeholder="Search jobs..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+            className="input pl-9 py-2.5 text-sm"
+            style={{ borderRadius: '10px' }}
           />
         </div>
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          value={status}
+          onChange={e => setStatus(e.target.value)}
+          className="input py-2.5 text-sm"
+          style={{ borderRadius: '10px' }}
         >
           <option value="">All Status</option>
           <option value="active">Active</option>
@@ -64,74 +58,74 @@ const AdminJobs = () => {
         </select>
       </div>
 
-      {/* Jobs List */}
       <div className="px-4 py-4">
         {!loading && (
-          <p className="text-sm text-gray-500 mb-3">{pagination.total} jobs found</p>
+          <p className="text-xs text-slate-500 mb-3 font-medium">{pagination.total} jobs found</p>
         )}
 
-        {loading ? (
-          <SkeletonList count={5} />
-        ) : (
+        {loading ? <SkeletonList count={5} /> : (
           <div className="space-y-3">
-            {jobs.map((job) => (
-              <div key={job.id} className="card p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium text-gray-900">{job.title}</h3>
-                    <p className="text-sm text-gray-500">{job.employer_name}</p>
-                    <p className="text-sm text-gray-400 flex items-center mt-1">
-                      <MapPin className="w-4 h-4 mr-1" />
-                      {job.city}
-                    </p>
+            {jobs.map(job => {
+              const badge = STATUS_BADGE[job.is_active] || STATUS_BADGE[false];
+              return (
+                <div key={job.id} className="card-elevated p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-display font-bold text-slate-900 text-sm truncate">{job.title}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">{job.employer_name}</p>
+                      <div className="flex items-center gap-1 text-xs text-slate-400 mt-1">
+                        <MapPin className="w-3 h-3" />{job.city}
+                      </div>
+                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                      style={{ background: badge.bg, color: badge.color }}>
+                      {badge.label}
+                    </span>
                   </div>
-                  <Badge variant={job.is_active ? 'success' : 'default'}>
-                    {job.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
 
-                <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                  <span className="flex items-center">
-                    <Users className="w-4 h-4 mr-1" />
-                    {job.applications_count || 0}
-                  </span>
-                  <span className="flex items-center">
-                    <Eye className="w-4 h-4 mr-1" />
-                    {job.views_count || 0}
-                  </span>
-                  <span>{new Date(job.created_at).toLocaleDateString()}</span>
-                </div>
+                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
+                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <Users className="w-3.5 h-3.5" />{job.applications_count || 0} applied
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <Eye className="w-3.5 h-3.5" />{job.views_count || 0} views
+                    </span>
+                    <span className="text-xs text-slate-400 ml-auto">
+                      {new Date(job.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
 
-                {job.skill_name && (
-                  <Badge variant="primary" size="xs" className="mt-2">
-                    {job.skill_name}
-                  </Badge>
-                )}
-              </div>
-            ))}
+                  {job.skill_name && (
+                    <span className="badge badge-blue mt-2">{job.skill_name}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
         {/* Pagination */}
         {!loading && pagination.pages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <Button
-              variant="secondary"
+          <div className="flex items-center justify-between mt-5">
+            <button
               disabled={pagination.page <= 1}
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+              onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+              className="btn-secondary px-4 py-2 text-sm disabled:opacity-40"
+              style={{ borderRadius: '10px' }}
             >
-              Previous
-            </Button>
-            <span className="text-sm text-gray-500">
-              Page {pagination.page} of {pagination.pages}
+              <ChevronLeft className="w-4 h-4" /> Prev
+            </button>
+            <span className="text-sm text-slate-500 font-medium">
+              {pagination.page} / {pagination.pages}
             </span>
-            <Button
-              variant="secondary"
+            <button
               disabled={pagination.page >= pagination.pages}
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+              onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+              className="btn-secondary px-4 py-2 text-sm disabled:opacity-40"
+              style={{ borderRadius: '10px' }}
             >
-              Next
-            </Button>
+              Next <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>

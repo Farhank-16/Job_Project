@@ -1,75 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Filter } from 'lucide-react';
 import { adminService } from '../../services/adminService';
-import Badge from '../../components/ui/Badge';
 import { SkeletonList } from '../../components/ui/Skeleton';
+
+const STATUS_STYLE = {
+  completed: { bg: '#f0fdf4', color: '#15803d', label: 'Completed' },
+  pending:   { bg: '#fefce8', color: '#92400e', label: 'Pending' },
+  failed:    { bg: '#fff1f2', color: '#be123c', label: 'Failed' },
+  created:   { bg: '#f1f5f9', color: '#475569', label: 'Created' },
+};
+
+const TYPE_STYLE = {
+  subscription:   { bg: '#faf5ff', color: '#7e22ce', label: 'Subscription' },
+  skill_exam:     { bg: '#fffbeb', color: '#92400e', label: 'Exam' },
+  verified_badge: { bg: '#eff6ff', color: '#1d4ed8', label: 'Badge' },
+};
+
+const Pill = ({ styles, label }) => (
+  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+    style={{ background: styles?.bg || '#f1f5f9', color: styles?.color || '#475569' }}>
+    {styles?.label || label}
+  </span>
+);
 
 const AdminPayments = () => {
   const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [status, setStatus]     = useState('');
+  const [type, setType]         = useState('');
 
-  useEffect(() => {
-    loadPayments();
-  }, [statusFilter, typeFilter]);
+  useEffect(() => { loadPayments(); }, [status, type]);
 
   const loadPayments = async () => {
     setLoading(true);
     try {
-      const data = await adminService.getPayments({
-        status: statusFilter,
-        type: typeFilter,
-      });
+      const data = await adminService.getPayments({ status, type });
       setPayments(data.payments);
-    } catch (error) {
-      console.error('Failed to load payments:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  const getStatusBadge = (status) => {
-    const config = {
-      completed: { variant: 'success', label: 'Completed' },
-      pending: { variant: 'warning', label: 'Pending' },
-      failed: { variant: 'danger', label: 'Failed' },
-      created: { variant: 'default', label: 'Created' },
-    };
-    const c = config[status] || { variant: 'default', label: status };
-    return <Badge variant={c.variant} size="xs">{c.label}</Badge>;
-  };
-
-  const getTypeBadge = (type) => {
-    const config = {
-      subscription: { variant: 'primary', label: 'Subscription' },
-      skill_exam: { variant: 'info', label: 'Exam' },
-      verified_badge: { variant: 'success', label: 'Badge' },
-    };
-    const c = config[type] || { variant: 'default', label: type };
-    return <Badge variant={c.variant} size="xs">{c.label}</Badge>;
-  };
+  const total = payments
+    .filter(p => p.status === 'completed')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="sticky top-14 bg-white border-b z-30 px-4 py-3 space-y-3">
-        <h2 className="font-semibold text-gray-900">Payments</h2>
-        <div className="flex space-x-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          >
+    <div className="min-h-screen bg-slate-50 pb-20">
+
+      {/* Filters */}
+      <div className="sticky top-14 bg-white border-b border-slate-100 z-30 px-4 py-3 space-y-2.5">
+        <div className="flex gap-2">
+          <select value={status} onChange={e => setStatus(e.target.value)}
+            className="input flex-1 py-2.5 text-sm" style={{ borderRadius: '10px' }}>
             <option value="">All Status</option>
             <option value="completed">Completed</option>
             <option value="pending">Pending</option>
             <option value="failed">Failed</option>
           </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          >
+          <select value={type} onChange={e => setType(e.target.value)}
+            className="input flex-1 py-2.5 text-sm" style={{ borderRadius: '10px' }}>
             <option value="">All Types</option>
             <option value="subscription">Subscription</option>
             <option value="skill_exam">Exam</option>
@@ -79,35 +67,60 @@ const AdminPayments = () => {
       </div>
 
       <div className="px-4 py-4">
-        {loading ? (
-          <SkeletonList count={10} />
-        ) : (
+
+        {/* Revenue summary */}
+        {!loading && (
+          <div className="card-elevated p-4 mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-500 font-medium">Showing Revenue</p>
+              <p className="font-display text-xl font-extrabold text-slate-900 mt-0.5">
+                ₹{total.toLocaleString('en-IN')}
+              </p>
+            </div>
+            <span className="text-xs text-slate-400">{payments.length} transactions</span>
+          </div>
+        )}
+
+        {loading ? <SkeletonList count={8} /> : (
           <div className="space-y-3">
-            {payments.map((payment) => (
-              <div key={payment.id} className="card p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{payment.user_name || 'Unknown'}</p>
-                    <p className="text-sm text-gray-500">{payment.user_mobile}</p>
+            {payments.map(payment => (
+              <div key={payment.id} className="card-elevated p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-bold text-slate-900 text-sm">
+                      {payment.user_name || 'Unknown User'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">{payment.user_mobile}</p>
                   </div>
-                  <p className="font-semibold text-gray-900">₹{payment.amount}</p>
+                  <p className="font-display font-extrabold text-slate-900 flex-shrink-0">
+                    ₹{Number(payment.amount).toLocaleString('en-IN')}
+                  </p>
                 </div>
 
-                <div className="flex items-center space-x-2 mt-3">
-                  {getTypeBadge(payment.payment_type)}
-                  {getStatusBadge(payment.status)}
-                  <span className="text-xs text-gray-400">
-                    {new Date(payment.created_at).toLocaleString()}
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <Pill styles={TYPE_STYLE[payment.payment_type]} />
+                  <Pill styles={STATUS_STYLE[payment.status]} />
+                  <span className="text-xs text-slate-400 ml-auto">
+                    {new Date(payment.created_at).toLocaleString('en-IN', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                    })}
                   </span>
                 </div>
 
                 {payment.razorpay_payment_id && (
-                  <p className="text-xs text-gray-400 mt-2 truncate">
-                    ID: {payment.razorpay_payment_id}
+                  <p className="text-xs text-slate-300 mt-2 font-mono truncate">
+                    {payment.razorpay_payment_id}
                   </p>
                 )}
               </div>
             ))}
+
+            {payments.length === 0 && (
+              <div className="text-center py-12">
+                <p className="font-display font-bold text-slate-700">No payments found</p>
+                <p className="text-xs text-slate-400 mt-1">Try changing filters</p>
+              </div>
+            )}
           </div>
         )}
       </div>

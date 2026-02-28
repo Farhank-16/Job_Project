@@ -2,267 +2,205 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { skillService } from '../../services/skillService';
-import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
-import Badge from '../../components/ui/Badge';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import toast from 'react-hot-toast';
 
+const DIFF_STYLE = {
+  easy:   { bg: '#f0fdf4', color: '#15803d' },
+  medium: { bg: '#fefce8', color: '#92400e' },
+  hard:   { bg: '#fff1f2', color: '#be123c' },
+};
+
+const BLANK = {
+  skillId: '', question: '', optionA: '', optionB: '',
+  optionC: '', optionD: '', correctOption: '', difficulty: 'medium',
+};
+
 const AdminQuestions = () => {
   const [questions, setQuestions] = useState([]);
-  const [skills, setSkills] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [skills, setSkills]       = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [editing, setEditing]     = useState(null);
+  const [saving, setSaving]       = useState(false);
   const [skillFilter, setSkillFilter] = useState('');
-  const [formData, setFormData] = useState({
-    skillId: '',
-    question: '',
-    optionA: '',
-    optionB: '',
-    optionC: '',
-    optionD: '',
-    correctOption: '',
-    difficulty: 'medium',
-  });
+  const [form, setForm]           = useState(BLANK);
 
-  useEffect(() => {
-    loadData();
-  }, [skillFilter]);
+  useEffect(() => { loadData(); }, [skillFilter]);
 
   const loadData = async () => {
     try {
-      const [questionsData, skillsData] = await Promise.all([
+      const [qData, sData] = await Promise.all([
         adminService.getQuestions({ skillId: skillFilter }),
         skillService.getSkills(),
       ]);
-      setQuestions(questionsData.questions);
-      setSkills(skillsData.skills);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setLoading(false);
-    }
+      setQuestions(qData.questions);
+      setSkills(sData.skills);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  const handleSave = async () => {
-    if (!formData.skillId || !formData.question || !formData.correctOption) {
-      toast.error('Please fill all required fields');
-      return;
-    }
+  const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
+  const handleSave = async () => {
+    if (!form.skillId || !form.question || !form.correctOption) {
+      toast.error('Fill all required fields'); return;
+    }
     setSaving(true);
     try {
       if (editing) {
-        await adminService.updateQuestion(editing.id, formData);
+        await adminService.updateQuestion(editing.id, form);
         toast.success('Question updated');
       } else {
-        await adminService.createQuestion(formData);
+        await adminService.createQuestion(form);
         toast.success('Question created');
       }
       setShowModal(false);
-      resetForm();
+      setForm(BLANK);
+      setEditing(null);
       loadData();
-    } catch (error) {
-      toast.error('Failed to save question');
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error('Failed to save question'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this question?')) return;
-    
     try {
       await adminService.deleteQuestion(id);
-      setQuestions(prev => prev.filter(q => q.id !== id));
-      toast.success('Question deleted');
-    } catch (error) {
-      toast.error('Failed to delete');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      skillId: '',
-      question: '',
-      optionA: '',
-      optionB: '',
-      optionC: '',
-      optionD: '',
-      correctOption: '',
-      difficulty: 'medium',
-    });
-    setEditing(null);
+      setQuestions(p => p.filter(q => q.id !== id));
+      toast.success('Deleted');
+    } catch { toast.error('Failed to delete'); }
   };
 
   const openEdit = (q) => {
     setEditing(q);
-    setFormData({
-      skillId: q.skill_id,
-      question: q.question,
-      optionA: q.option_a,
-      optionB: q.option_b,
-      optionC: q.option_c,
-      optionD: q.option_d,
-      correctOption: q.correct_option,
-      difficulty: q.difficulty,
+    setForm({
+      skillId: q.skill_id, question: q.question,
+      optionA: q.option_a, optionB: q.option_b,
+      optionC: q.option_c, optionD: q.option_d,
+      correctOption: q.correct_option, difficulty: q.difficulty,
     });
     setShowModal(true);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="sticky top-14 bg-white border-b z-30 px-4 py-3 space-y-3">
+    <div className="min-h-screen bg-slate-50 pb-20">
+
+      {/* Header bar */}
+      <div className="sticky top-14 bg-white border-b border-slate-100 z-30 px-4 py-3 space-y-2.5">
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold text-gray-900">{questions.length} Questions</h2>
-          <Button 
-            size="sm" 
-            icon={Plus}
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-          >
-            Add
-          </Button>
+          <p className="font-display font-bold text-slate-800 text-sm">{questions.length} Questions</p>
+          <button
+            onClick={() => { setForm(BLANK); setEditing(null); setShowModal(true); }}
+            className="btn-primary px-4 py-2 text-sm gap-1.5" style={{ borderRadius: '10px' }}>
+            <Plus className="w-4 h-4" /> Add
+          </button>
         </div>
-        <select
-          value={skillFilter}
-          onChange={(e) => setSkillFilter(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-        >
+        <select value={skillFilter} onChange={e => setSkillFilter(e.target.value)}
+          className="input w-full py-2.5 text-sm" style={{ borderRadius: '10px' }}>
           <option value="">All Skills</option>
-          {skills.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
+          {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
       <div className="px-4 py-4">
-        {loading ? (
-          <SkeletonList count={5} />
-        ) : (
+        {loading ? <SkeletonList count={5} /> : (
           <div className="space-y-3">
-            {questions.map((q) => (
-              <div key={q.id} className="card p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <Badge size="xs" variant="primary">{q.skill_name}</Badge>
-                    <p className="mt-2 font-medium text-gray-900">{q.question}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                      <div className={q.correct_option === 'a' ? 'text-green-600 font-medium' : 'text-gray-600'}>
-                        A: {q.option_a}
-                      </div>
-                      <div className={q.correct_option === 'b' ? 'text-green-600 font-medium' : 'text-gray-600'}>
-                        B: {q.option_b}
-                      </div>
-                      <div className={q.correct_option === 'c' ? 'text-green-600 font-medium' : 'text-gray-600'}>
-                        C: {q.option_c}
-                      </div>
-                      <div className={q.correct_option === 'd' ? 'text-green-600 font-medium' : 'text-gray-600'}>
-                        D: {q.option_d}
-                      </div>
-                    </div>
+            {questions.map(q => (
+              <div key={q.id} className="card-elevated p-4">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="badge badge-blue text-xs">{q.skill_name}</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={DIFF_STYLE[q.difficulty] || DIFF_STYLE.medium}>
+                      {q.difficulty}
+                    </span>
                   </div>
-                  <div className="flex space-x-1 ml-2">
-                    <button
-                      onClick={() => openEdit(q)}
-                      className="p-2 hover:bg-gray-100 rounded"
-                    >
-                      <Edit2 className="w-4 h-4 text-gray-400" />
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => openEdit(q)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">
+                      <Edit2 className="w-3.5 h-3.5 text-slate-400" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(q.id)}
-                      className="p-2 hover:bg-gray-100 rounded"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-400" />
+                    <button onClick={() => handleDelete(q.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50">
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
                     </button>
                   </div>
                 </div>
+
+                <p className="font-display font-semibold text-slate-800 text-sm mb-3 leading-snug">
+                  {q.question}
+                </p>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[['a', q.option_a], ['b', q.option_b], ['c', q.option_c], ['d', q.option_d]].map(([key, val]) => (
+                    <div key={key}
+                      className="flex items-start gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
+                      style={{
+                        background: q.correct_option === key ? '#f0fdf4' : '#f8fafc',
+                        color:      q.correct_option === key ? '#15803d' : '#64748b',
+                        fontWeight: q.correct_option === key ? 700 : 400,
+                        border:     q.correct_option === key ? '1px solid #bbf7d0' : '1px solid #f1f5f9',
+                      }}>
+                      <span className="font-bold uppercase">{key}.</span>
+                      <span className="leading-tight">{val}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
+
+            {questions.length === 0 && (
+              <div className="text-center py-12">
+                <p className="font-display font-bold text-slate-700">No questions yet</p>
+                <p className="text-xs text-slate-400 mt-1">Add your first question</p>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editing ? 'Edit Question' : 'Add Question'}
-        size="lg"
-      >
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-          <Select
-            label="Skill *"
-            value={formData.skillId}
-            onChange={(e) => setFormData(prev => ({ ...prev, skillId: e.target.value }))}
-            options={skills.map(s => ({ value: s.id, label: s.name }))}
-            placeholder="Select skill"
-          />
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)}
+        title={editing ? 'Edit Question' : 'Add Question'} size="lg">
+        <div className="space-y-4">
+          <Select label="Skill *" value={form.skillId} onChange={set('skillId')}
+            options={skills.map(s => ({ value: s.id, label: s.name }))} placeholder="Select skill" />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Question *</label>
-            <textarea
-              value={formData.question}
-              onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
-              rows={3}
-              className="input"
-              placeholder="Enter the question"
-            />
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5"
+              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Question *</label>
+            <textarea value={form.question} onChange={set('question')} rows={3}
+              className="input" placeholder="Enter the question..." />
           </div>
 
-          <Input
-            label="Option A *"
-            value={formData.optionA}
-            onChange={(e) => setFormData(prev => ({ ...prev, optionA: e.target.value }))}
-          />
-          <Input
-            label="Option B *"
-            value={formData.optionB}
-            onChange={(e) => setFormData(prev => ({ ...prev, optionB: e.target.value }))}
-          />
-          <Input
-            label="Option C *"
-            value={formData.optionC}
-            onChange={(e) => setFormData(prev => ({ ...prev, optionC: e.target.value }))}
-          />
-          <Input
-            label="Option D *"
-            value={formData.optionD}
-            onChange={(e) => setFormData(prev => ({ ...prev, optionD: e.target.value }))}
-          />
+          {[['optionA','Option A *'],['optionB','Option B *'],['optionC','Option C *'],['optionD','Option D *']].map(([k, label]) => (
+            <Input key={k} label={label} value={form[k]} onChange={set(k)} />
+          ))}
 
-          <Select
-            label="Correct Answer *"
-            value={formData.correctOption}
-            onChange={(e) => setFormData(prev => ({ ...prev, correctOption: e.target.value }))}
+          <Select label="Correct Answer *" value={form.correctOption} onChange={set('correctOption')}
             options={[
-              { value: 'a', label: 'Option A' },
-              { value: 'b', label: 'Option B' },
-              { value: 'c', label: 'Option C' },
-              { value: 'd', label: 'Option D' },
-            ]}
-            placeholder="Select correct answer"
-          />
+              { value: 'a', label: 'A' }, { value: 'b', label: 'B' },
+              { value: 'c', label: 'C' }, { value: 'd', label: 'D' },
+            ]} placeholder="Select correct option" />
 
-          <Select
-            label="Difficulty"
-            value={formData.difficulty}
-            onChange={(e) => setFormData(prev => ({ ...prev, difficulty: e.target.value }))}
+          <Select label="Difficulty" value={form.difficulty} onChange={set('difficulty')}
             options={[
-              { value: 'easy', label: 'Easy' },
-              { value: 'medium', label: 'Medium' },
-              { value: 'hard', label: 'Hard' },
-            ]}
-          />
+              { value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' },
+            ]} />
 
-          <Button fullWidth loading={saving} onClick={handleSave}>
-            {editing ? 'Update' : 'Create'} Question
-          </Button>
+          <button onClick={handleSave} disabled={saving}
+            className="btn-primary w-full py-3.5 text-sm" style={{ borderRadius: '10px' }}>
+            {saving
+              ? <span className="flex items-center gap-2 justify-center">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </span>
+              : `${editing ? 'Update' : 'Create'} Question`
+            }
+          </button>
         </div>
       </Modal>
     </div>
