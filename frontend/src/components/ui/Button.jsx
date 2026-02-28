@@ -1,5 +1,19 @@
 import React from 'react';
-import LoadingSpinner from './LoadingSpinner';
+
+const VARIANTS = {
+  primary:   'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm shadow-blue-200',
+  secondary: 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus:ring-slate-300',
+  danger:    'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+  success:   'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
+  ghost:     'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-300',
+  link:      'bg-transparent text-blue-600 hover:text-blue-700 hover:underline p-0 shadow-none',
+};
+
+const SIZES = {
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2.5 text-sm',
+  lg: 'px-6 py-3.5 text-base',
+};
 
 const Button = ({
   children,
@@ -12,48 +26,34 @@ const Button = ({
   iconPosition = 'left',
   className = '',
   ...props
-}) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
-  
-  const variants = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 disabled:bg-gray-300',
-    secondary: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
-    ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-500',
-    link: 'bg-transparent text-primary-600 hover:text-primary-700 hover:underline p-0',
-  };
-
-  const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
-  };
-
-  return (
-    <button
-      className={`
-        ${baseStyles}
-        ${variants[variant]}
-        ${variant !== 'link' ? sizes[size] : ''}
-        ${fullWidth ? 'w-full' : ''}
-        ${disabled || loading ? 'opacity-50 cursor-not-allowed' : ''}
-        ${className}
-      `}
-      disabled={disabled || loading}
-      {...props}
-    >
-      {loading ? (
-        <LoadingSpinner size="sm" />
-      ) : (
-        <>
-          {Icon && iconPosition === 'left' && <Icon className="w-5 h-5 mr-2" />}
-          {children}
-          {Icon && iconPosition === 'right' && <Icon className="w-5 h-5 ml-2" />}
-        </>
-      )}
-    </button>
-  );
-};
+}) => (
+  <button
+    className={`
+      inline-flex items-center justify-center gap-2
+      font-semibold rounded-xl
+      transition-all duration-150
+      focus:outline-none focus:ring-2 focus:ring-offset-2
+      active:scale-[0.97]
+      ${VARIANTS[variant]}
+      ${variant !== 'link' ? SIZES[size] : ''}
+      ${fullWidth ? 'w-full' : ''}
+      ${disabled || loading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}
+      ${className}
+    `}
+    style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+    disabled={disabled || loading}
+    {...props}
+  >
+    {loading ? (
+      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+    ) : (
+      <>
+        {Icon && iconPosition === 'left'  && <Icon className="w-4 h-4 flex-shrink-0" />}
+        {children}
+        {Icon && iconPosition === 'right' && <Icon className="w-4 h-4 flex-shrink-0" />}
+      </>
+    )}
+  </button>
+);
 
 export default Button;
