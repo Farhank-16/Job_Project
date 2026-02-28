@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Navigation } from 'lucide-react';
+import { Navigation, CheckCircle2 } from 'lucide-react';
 import useAuth from '../../context/useAuth';
 import { userService } from '../../services/userService';
 import { skillService } from '../../services/skillService';
@@ -10,224 +10,175 @@ import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
 import toast from 'react-hot-toast';
 
+const Section = ({ title, children }) => (
+  <div className="card-elevated p-4 space-y-4">
+    <h3 className="font-display font-bold text-gray-800 text-sm uppercase tracking-wide ">
+      {title}
+    </h3>
+    {children}
+  </div>
+);
+
 const CompleteProfile = () => {
-  const { user, updateUser } = useAuth();
-  const navigate = useNavigate();
+  const { user, updateUser }                              = useAuth();
+  const navigate                                          = useNavigate();
   const { getCurrentLocation, loading: locationLoading } = useGeoLocation();
 
   const [loading, setLoading] = useState(false);
-  const [skills, setSkills] = useState([]);
+  const [skills, setSkills]   = useState([]);
   const [formData, setFormData] = useState({
-    area: '',
-    city: '',
-    state: '',
-    pincode: '',
-    latitude: null,
-    longitude: null,
+    area: '', city: '', state: '', pincode: '',
+    latitude: null, longitude: null,
     experienceYears: 0,
     availability: 'immediate',
     selectedSkills: [],
   });
 
   useEffect(() => {
-    loadSkills();
+    skillService.getSkills().then(({ skills }) => setSkills(skills)).catch(console.error);
   }, []);
 
-  const loadSkills = async () => {
-    try {
-      const { skills } = await skillService.getSkills();
-      setSkills(skills);
-    } catch (error) {
-      console.error('Failed to load skills:', error);
-    }
-  };
+  const set = (key) => (e) => setFormData(p => ({ ...p, [key]: e.target.value }));
 
   const handleGetLocation = async () => {
     try {
       const coords = await getCurrentLocation();
-      setFormData(prev => ({
-        ...prev,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      }));
-      toast.success('Location captured!');
+      setFormData(p => ({ ...p, latitude: coords.latitude, longitude: coords.longitude }));
+      toast.success('Location mil gayi!');
     } catch (error) {
       toast.error(error.message);
     }
   };
 
-  const handleSkillToggle = (skillId) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedSkills: prev.selectedSkills.includes(skillId)
-        ? prev.selectedSkills.filter(id => id !== skillId)
-        : [...prev.selectedSkills, skillId],
+  const toggleSkill = (id) =>
+    setFormData(p => ({
+      ...p,
+      selectedSkills: p.selectedSkills.includes(id)
+        ? p.selectedSkills.filter(s => s !== id)
+        : [...p.selectedSkills, id],
     }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.city) {
-      toast.error('Please enter your city');
-      return;
-    }
-
-    if (!formData.latitude || !formData.longitude) {
-      toast.error('Please capture your location');
-      return;
-    }
+    if (!formData.city)                          return toast.error('City daalo');
+    if (!formData.latitude || !formData.longitude) return toast.error('Location capture karo');
 
     setLoading(true);
     try {
-      const profileData = {
-        area: formData.area,
-        city: formData.city,
-        state: formData.state,
-        pincode: formData.pincode,
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        experienceYears: formData.experienceYears,
-        availability: formData.availability,
-        skills: formData.selectedSkills.map(skillId => ({
-          skillId,
-          proficiency: 'beginner',
-        })),
-      };
-
-      await userService.updateProfile(profileData);
+      await userService.updateProfile({
+        ...formData,
+        skills: formData.selectedSkills.map(skillId => ({ skillId, proficiency: 'beginner' })),
+      });
       updateUser({ profileCompleted: true });
-      
-      toast.success('Profile completed!');
+      toast.success('Profile complete ho gayi!');
       navigate(user.role === 'employer' ? '/employer' : '/seeker');
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to save profile');
+      toast.error(error.response?.data?.error || 'Profile save nahi hui');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Complete Your Profile</h1>
-          <p className="text-gray-600 mt-2">Help us match you better</p>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Top banner */}
+      <div className="bg-brand px-6 pt-8 pb-10">
+        <p className="text-green-200 text-xs font-semibold uppercase tracking-wider mb-1">Step 1 of 1</p>
+        <h1 className="font-display text-2xl font-black text-white"> Complete Your Profile  </h1>
+        <p className="text-green-100 text-sm mt-1">For Better job matches </p>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Location Section */}
-          <div className="space-y-4">
-            <h3 className="font-medium text-gray-900">Your Location</h3>
-            
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth
-              onClick={handleGetLocation}
-              loading={locationLoading}
-              icon={Navigation}
-            >
-              {formData.latitude ? 'Location Captured ✓' : 'Capture My Location'}
-            </Button>
+      <form onSubmit={handleSubmit} className="px-4 -mt-4 pb-8 space-y-4">
 
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Area/Village"
-                value={formData.area}
-                onChange={(e) => setFormData(prev => ({ ...prev, area: e.target.value }))}
-                placeholder="Enter area"
-              />
-              <Input
-                label="City/Town"
-                value={formData.city}
-                onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                placeholder="Enter city"
-                required
-              />
-            </div>
+        {/* Location */}
+        <Section title="Your Location">
+          <button
+            type="button"
+            onClick={handleGetLocation}
+            disabled={locationLoading}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-display font-bold text-sm transition-all"
+            style={{
+              borderColor: formData.latitude ? '#16a34a' : '#d1d5db',
+              background:  formData.latitude ? '#f0fdf4' : 'white',
+              color:       formData.latitude ? '#16a34a' : '#374151',
+            }}
+          >
+            {locationLoading
+              ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : formData.latitude
+                ? <CheckCircle2 className="w-4 h-4" />
+                : <Navigation className="w-4 h-4" />
+            }
+            {formData.latitude ? 'Location is Captured ✓' : 'Capture My Location'}
+          </button>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="State"
-                value={formData.state}
-                onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
-                placeholder="Enter state"
-              />
-              <Input
-                label="Pincode"
-                value={formData.pincode}
-                onChange={(e) => setFormData(prev => ({ ...prev, pincode: e.target.value }))}
-                placeholder="Enter pincode"
-                inputMode="numeric"
-                maxLength={6}
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Area / Village" value={formData.area}    onChange={set('area')}    placeholder="Area" />
+            <Input label="City / Town *"  value={formData.city}    onChange={set('city')}    placeholder="City" required />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="State"   value={formData.state}   onChange={set('state')}   placeholder="State" />
+            <Input label="Pincode" value={formData.pincode} onChange={set('pincode')} placeholder="000000" inputMode="numeric" maxLength={6} />
+          </div>
+        </Section>
 
-          {/* Skills Section (for job seekers) */}
-          {user?.role === 'job_seeker' && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-gray-900">Your Skills</h3>
-              <div className="flex flex-wrap gap-2">
-                {skills.map(skill => (
+        {/* Skills — only for seekers */}
+        {user?.role === 'job_seeker' && (
+          <Section title="Your Skills">
+            <p className="text-xs text-gray-500 -mt-1">Choose skills </p>
+            <div className="flex flex-wrap gap-2">
+              {skills.map(skill => {
+                const selected = formData.selectedSkills.includes(skill.id);
+                return (
                   <button
                     key={skill.id}
                     type="button"
-                    onClick={() => handleSkillToggle(skill.id)}
-                    className={`
-                      px-4 py-2 rounded-full text-sm font-medium transition-colors
-                      ${formData.selectedSkills.includes(skill.id)
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }
-                    `}
+                    onClick={() => toggleSkill(skill.id)}
+                    className="px-3 py-1.5 rounded-full text-sm font-display font-bold transition-all"
+                    style={{
+                      background:  selected ? '#16a34a' : '#f3f4f6',
+                      color:       selected ? 'white'   : '#374151',
+                      boxShadow:   selected ? '0 2px 8px rgba(22,163,74,0.25)' : 'none',
+                    }}
                   >
-                    {skill.name}
+                    {selected && '✓ '}{skill.name}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
+          </Section>
+        )}
 
-          {/* Experience & Availability (for job seekers) */}
-          {user?.role === 'job_seeker' && (
-            <div className="grid grid-cols-2 gap-4">
+        {/* Experience — only for seekers */}
+        {user?.role === 'job_seeker' && (
+          <Section title="Experience">
+            <div className="grid grid-cols-2 gap-3">
               <Input
                 type="number"
-                label="Years of Experience"
+                label="Experience (In Years)"
                 value={formData.experienceYears}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  experienceYears: parseInt(e.target.value) || 0 
-                }))}
-                min={0}
-                max={50}
+                onChange={(e) => setFormData(p => ({ ...p, experienceYears: parseInt(e.target.value) || 0 }))}
+                min={0} max={50}
               />
               <Select
                 label="Availability"
                 value={formData.availability}
-                onChange={(e) => setFormData(prev => ({ ...prev, availability: e.target.value }))}
+                onChange={set('availability')}
                 options={[
-                  { value: 'immediate', label: 'Immediate' },
-                  { value: 'within_week', label: 'Within a week' },
-                  { value: 'within_month', label: 'Within a month' },
-                  { value: 'not_available', label: 'Not available' },
+                  { value: 'immediate',    label: 'Immediate' },
+                  { value: 'within_week',  label: 'Within a Week' },
+                  { value: 'within_month', label: 'Within a Month' },
+                  { value: 'not_available',label: 'Not Available' },
                 ]}
               />
             </div>
-          )}
+          </Section>
+        )}
 
-          <Button
-            type="submit"
-            fullWidth
-            size="lg"
-            loading={loading}
-          >
-            Complete Profile
-          </Button>
-        </form>
-      </div>
+        <Button type="submit" fullWidth size="lg" loading={loading}>
+          Complete Profile
+        </Button>
+      </form>
     </div>
   );
 };
