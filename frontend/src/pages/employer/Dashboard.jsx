@@ -1,198 +1,144 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, Briefcase, Users, Eye, 
-  Crown, TrendingUp, MapPin 
-} from 'lucide-react';
+import { Plus, Briefcase, Users, Eye, Crown, TrendingUp, MapPin, ArrowRight, ChevronRight, CheckCircle2, BadgeCheck } from 'lucide-react';
 import useAuth from '../../context/useAuth';
 import { jobService } from '../../services/jobService';
-import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 
 const EmployerDashboard = () => {
-  const { user, isSubscribed } = useAuth();
+  const { user, isSubscribed, isVerified } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalJobs: 0,
-    activeJobs: 0,
-    totalApplications: 0,
-    totalViews: 0,
-  });
   const [recentJobs, setRecentJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
+  const [stats, setStats]           = useState({ activeJobs: 0, totalApplications: 0, totalViews: 0, totalJobs: 0 });
 
   useEffect(() => {
-    loadDashboardData();
+    jobService.getMyJobs(1, 5)
+      .then(({ jobs }) => {
+        setRecentJobs(jobs);
+        setStats({
+          activeJobs:        jobs.filter(j => j.is_active).length,
+          totalJobs:         jobs.length,
+          totalApplications: jobs.reduce((s, j) => s + (j.applications_count || 0), 0),
+          totalViews:        jobs.reduce((s, j) => s + (j.views_count || 0), 0),
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const loadDashboardData = async () => {
-    try {
-      const { jobs } = await jobService.getMyJobs(1, 5);
-      setRecentJobs(jobs);
-      
-      // Calculate stats
-      const activeJobs = jobs.filter(j => j.is_active).length;
-      const totalApplications = jobs.reduce((sum, j) => sum + (j.applications_count || 0), 0);
-      const totalViews = jobs.reduce((sum, j) => sum + (j.views_count || 0), 0);
-      
-      setStats({
-        totalJobs: jobs.length,
-        activeJobs,
-        totalApplications,
-        totalViews,
-      });
-    } catch (error) {
-      console.error('Failed to load dashboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const STATS = [
+    { icon: Briefcase,  bg: '#eff6ff', fg: '#2563eb', val: stats.activeJobs,        label: 'Active Jobs' },
+    { icon: Users,      bg: '#f0fdf4', fg: '#16a34a', val: stats.totalApplications, label: 'Applications' },
+    { icon: Eye,        bg: '#faf5ff', fg: '#7c3aed', val: stats.totalViews,        label: 'Total Views' },
+    { icon: TrendingUp, bg: '#fffbeb', fg: '#d97706', val: stats.totalJobs,         label: 'Total Jobs' },
+  ];
 
   return (
-    <div className="px-4 py-6 space-y-6">
-      {/* Welcome Card */}
-      <div className="card p-5 bg-gradient-to-r from-primary-500 to-primary-600 text-white">
-        <h2 className="text-xl font-bold">Welcome, {user?.name || 'Employer'}!</h2>
-        <p className="text-primary-100 mt-1">
-          {isSubscribed ? 'Premium Account' : 'Free Account'}
-        </p>
+    <div className="min-h-screen bg-slate-50 pb-20">
 
+      {/* Banner */}
+      <div className="bg-brand px-5 pt-6 pb-14 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white opacity-[0.05] -translate-y-16 translate-x-16" />
+        <p className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">Employer Dashboard</p>
+        <div className="flex items-center gap-2 ">
+          <h2 className="font-display text-2xl font-extrabold text-white">
+            {user?.name?.split(' ')[0] || 'Welcome'} 👋
+          </h2>
+          {isVerified && (
+            <div className="w-7 h-7  bg-white/20 rounded-full flex items-center justify-center"
+              title="Verified Employer">
+              <BadgeCheck className="w-4  h-4 text-white" />
+            </div>
+          )}
+        </div>
+        <p className="text-blue-200 text-sm mt-1">{isSubscribed ? '⭐ Premium Account' : 'Free Account'}</p>
         {!isSubscribed && (
-          <button
-            onClick={() => navigate('/employer/subscription')}
-            className="mt-4 w-full py-2.5 bg-white text-primary-600 rounded-lg font-medium flex items-center justify-center space-x-2"
-          >
-            <Crown className="w-5 h-5" />
-            <span>Upgrade to Contact Candidates</span>
+          <button onClick={() => navigate('/employer/subscription')}
+            className="mt-5 w-full py-3 bg-white rounded-xl font-display font-bold text-blue-700 text-sm flex items-center justify-between px-4">
+            <span className="flex items-center gap-2"><Crown className="w-4 h-4 text-purple-500" /> Upgrade to Contact Candidates</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="card p-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-blue-600" />
+      {/* Stats grid */}
+      <div className="px-4 mt-6 grid grid-cols-2 gap-3 mb-5">
+        {STATS.map(({ icon: Icon, bg, fg, val, label }) => (
+          <div key={label} className="card-elevated p-4">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
+              style={{ background: bg }}>
+              <Icon className="w-5 h-5" style={{ color: fg }} />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.activeJobs}</p>
-              <p className="text-sm text-gray-500">Active Jobs</p>
-            </div>
+            <p className="font-display text-2xl font-extrabold text-slate-900">{val}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{label}</p>
           </div>
-        </div>
-
-        <div className="card p-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalApplications}</p>
-              <p className="text-sm text-gray-500">Applications</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Eye className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalViews}</p>
-              <p className="text-sm text-gray-500">Total Views</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalJobs}</p>
-              <p className="text-sm text-gray-500">Total Jobs</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          fullWidth
-          onClick={() => navigate('/employer/post-job')}
-          icon={Plus}
-        >
-          Post New Job
-        </Button>
-        <Button
-          variant="secondary"
-          fullWidth
-          onClick={() => navigate('/employer/candidates')}
-          icon={Users}
-        >
-          Find Candidates
-        </Button>
+      {/* Quick actions */}
+      <div className="px-4 mb-5 flex gap-3">
+        <button onClick={() => navigate('/employer/post-job')}
+          className="btn-primary flex-1 py-3 text-sm gap-2" style={{ borderRadius: '10px' }}>
+          <Plus className="w-4 h-4" /> Post Job
+        </button>
+        <button onClick={() => navigate('/employer/candidates')}
+          className="btn-secondary flex-1 py-3 text-sm gap-2" style={{ borderRadius: '10px' }}>
+          <Users className="w-4 h-4" /> Candidates
+        </button>
       </div>
 
-      {/* Recent Jobs */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Recent Jobs</h3>
-          <button 
-            onClick={() => navigate('/employer/jobs')}
-            className="text-sm text-primary-600 font-medium"
-          >
-            View all
-          </button>
+      {/* Recent jobs */}
+      <div className="px-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-display font-bold text-slate-800 text-sm">Recent Jobs</h3>
+          <button onClick={() => navigate('/employer/jobs')}
+            className="text-xs text-blue-600 font-semibold">View all</button>
         </div>
 
         {loading ? (
-          <div className="space-y-3">
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
+          <div className="space-y-3"><SkeletonCard /><SkeletonCard /></div>
         ) : recentJobs.length > 0 ? (
           <div className="space-y-3">
             {recentJobs.map(job => (
-              <div 
-                key={job.id}
-                className="card p-4 cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/employer/jobs/${job.id}/applications`)}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-medium text-gray-900">{job.title}</h4>
-                    <p className="text-sm text-gray-500 flex items-center mt-1">
-                      <MapPin className="w-4 h-4 mr-1" />
-                      {job.city}
-                    </p>
+              <div key={job.id}
+                className="card-elevated p-4 cursor-pointer active:scale-[0.98] transition-transform"
+                onClick={() => navigate(`/employer/jobs/${job.id}/applications`)}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-display font-bold text-slate-900 text-sm truncate">{job.title}</h4>
+                    <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                      <MapPin className="w-3 h-3" />{job.area && `${job.area}, `}{job.city}
+                    </div>
                   </div>
-                  <Badge variant={job.is_active ? 'success' : 'default'}>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+                    style={{ background: job.is_active ? '#f0fdf4' : '#f1f5f9', color: job.is_active ? '#15803d' : '#64748b' }}>
                     {job.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
+                  </span>
                 </div>
-                <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                  <span>{job.applications_count || 0} applications</span>
-                  <span>{job.views_count || 0} views</span>
+                <div className="flex items-center gap-4 mt-3 pt-2.5 border-t border-slate-50">
+                  <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <Users className="w-3.5 h-3.5" />{job.applications_count || 0} applied
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <Eye className="w-3.5 h-3.5" />{job.views_count || 0} views
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 ml-auto" />
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="card p-8 text-center">
-            <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <h4 className="font-medium text-gray-900 mb-1">No jobs posted yet</h4>
-            <p className="text-sm text-gray-500 mb-4">
-              Post your first job to start hiring
-            </p>
-            <Button onClick={() => navigate('/employer/post-job')} size="sm">
+          <div className="card-elevated p-8 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+              <Briefcase className="w-6 h-6 text-slate-300" />
+            </div>
+            <p className="font-display font-bold text-slate-700 text-sm">No jobs posted yet</p>
+            <p className="text-xs text-slate-400 mt-1 mb-4">Post your first job to start hiring</p>
+            <button onClick={() => navigate('/employer/post-job')}
+              className="btn-primary px-6 py-2.5 text-sm" style={{ borderRadius: '10px' }}>
               Post Job
-            </Button>
+            </button>
           </div>
         )}
       </div>

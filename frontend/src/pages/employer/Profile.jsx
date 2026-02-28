@@ -1,183 +1,143 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Mail, Edit2, Crown, LogOut } from 'lucide-react';
+import { MapPin, Mail, Edit2, Crown, LogOut, ChevronRight } from 'lucide-react';
 import useAuth from '../../context/useAuth';
 import { userService } from '../../services/userService';
-import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
-import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
 import toast from 'react-hot-toast';
-
-const NameAvatar = ({ name }) => {
-  const letter = name ? name.charAt(0).toUpperCase() : '?';
-  return (
-    <div className="w-20 h-20 rounded-full bg-primary-500 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
-      {letter}
-    </div>
-  );
-};
 
 const EmployerProfile = () => {
   const { user, logout, refreshUser, isSubscribed } = useAuth();
   const navigate = useNavigate();
+  const [showEdit, setShowEdit] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [form, setForm]         = useState({ name: '', email: '', bio: '', area: '', city: '', state: '' });
 
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [loading, setLoading]             = useState(false);
-  const [formData, setFormData] = useState({
-    name:  '',
-    email: '',
-    bio:   '',
-    area:  '',
-    city:  '',
-    state: '',
-  });
-
-  // Sync form when user data loads/refreshes
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name:  user.name  || '',
-        email: user.email || '',
-        bio:   user.bio   || '',
-        area:  user.area  || '',
-        city:  user.city  || '',
-        state: user.state || '',
-      });
-    }
+    if (user) setForm({
+      name: user.name || '', email: user.email || '', bio: user.bio || '',
+      area: user.area || '', city: user.city || '', state: user.state || '',
+    });
   }, [user]);
 
-  const handleUpdateProfile = async () => {
+  const set = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const handleSave = async () => {
     setLoading(true);
     try {
-      await userService.updateProfile(formData);
+      await userService.updateProfile(form);
       await refreshUser();
       toast.success('Profile updated');
-      setShowEditModal(false);
-    } catch (error) {
-      toast.error('Failed to update profile');
-    } finally {
-      setLoading(false);
-    }
+      setShowEdit(false);
+    } catch { toast.error('Failed to update profile'); }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-slate-50 pb-20">
+
       {/* Header */}
-      <div className="bg-white px-4 py-6">
-        <div className="flex items-center space-x-4">
-          <NameAvatar name={user?.name} />
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-gray-900">{user?.name || 'Employer'}</h2>
-            <p className="text-gray-500">+91 {user?.mobile}</p>
-            <div className="mt-1">
-              {isSubscribed ? <Badge variant="success">Premium</Badge> : <Badge>Free</Badge>}
-            </div>
+      <div className="bg-white px-4 py-6 border-b border-slate-100">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-display font-extrabold text-2xl flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
+            {user?.name?.charAt(0).toUpperCase() || '?'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-display font-extrabold text-slate-900 text-lg truncate">{user?.name || 'Employer'}</h2>
+            <p className="text-slate-400 text-sm">+91 {user?.mobile}</p>
+            <span className={`badge mt-1.5 ${isSubscribed ? 'badge-green' : 'badge-gray'}`}>
+              {isSubscribed ? '⭐ Premium' : 'Free Account'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Actions */}
       <div className="px-4 py-4 space-y-3">
-        <button
-          onClick={() => setShowEditModal(true)}
-          className="card p-4 w-full flex items-center justify-between"
-        >
-          <div className="flex items-center">
-            <Edit2 className="w-5 h-5 text-gray-400 mr-3" />
-            <span className="font-medium">Edit Profile</span>
+        {/* Edit */}
+        <button onClick={() => setShowEdit(true)}
+          className="card-elevated p-4 w-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center">
+              <Edit2 className="w-4 h-4 text-slate-400" />
+            </div>
+            <span className="font-display font-bold text-slate-800 text-sm">Edit Profile</span>
           </div>
-          <span className="text-gray-400">→</span>
+          <ChevronRight className="w-4 h-4 text-slate-300" />
         </button>
 
+        {/* Premium upsell */}
         {!isSubscribed && (
-          <button
-            onClick={() => navigate('/employer/subscription')}
-            className="card p-4 w-full flex items-center justify-between bg-purple-50 border-purple-200"
-          >
-            <div className="flex items-center">
-              <Crown className="w-5 h-5 text-purple-600 mr-3" />
-              <span className="font-medium text-purple-900">Upgrade to Premium</span>
+          <button onClick={() => navigate('/employer/subscription')}
+            className="card-elevated p-4 w-full flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
+                <Crown className="w-4 h-4 text-purple-600" />
+              </div>
+              <span className="font-display font-bold text-purple-700 text-sm">Upgrade to Premium</span>
             </div>
-            <span className="text-purple-400">→</span>
+            <ChevronRight className="w-4 h-4 text-slate-300" />
           </button>
         )}
-      </div>
 
-      {/* Details */}
-      <div className="px-4 py-4 space-y-4">
-        <div className="card p-4">
-          <h3 className="font-semibold text-gray-900 mb-2">About</h3>
-          <p className="text-gray-600">{user?.bio || 'No description added yet.'}</p>
+        {/* About */}
+        <div className="card-elevated p-4">
+          <h3 className="font-display font-bold text-slate-800 text-sm mb-2">About</h3>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            {user?.bio || 'No description added yet. Tap Edit Profile to add one.'}
+          </p>
         </div>
 
-        <div className="card p-4">
-          <h3 className="font-semibold text-gray-900 mb-3">Contact</h3>
-          <div className="space-y-3">
-            <div className="flex items-center text-gray-600">
-              <MapPin className="w-5 h-5 mr-3 text-gray-400 flex-shrink-0" />
-              <span>{[user?.area, user?.city].filter(Boolean).join(', ') || 'Location not set'}</span>
-            </div>
-            <div className="flex items-center text-gray-600">
-              <Mail className="w-5 h-5 mr-3 text-gray-400 flex-shrink-0" />
-              <span>{user?.email || 'Email not set'}</span>
-            </div>
+        {/* Contact */}
+        <div className="card-elevated p-4 space-y-3">
+          <h3 className="font-display font-bold text-slate-800 text-sm">Contact Details</h3>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <MapPin className="w-4 h-4 text-slate-300 flex-shrink-0" />
+            {[user?.area, user?.city].filter(Boolean).join(', ') || 'Location not set'}
+          </div>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
+            <Mail className="w-4 h-4 text-slate-300 flex-shrink-0" />
+            {user?.email || 'Email not set'}
           </div>
         </div>
 
-        <button
-          onClick={logout}
-          className="card p-4 w-full flex items-center text-red-600"
-        >
-          <LogOut className="w-5 h-5 mr-3" />
-          <span className="font-medium">Logout</span>
+        {/* Logout */}
+        <button onClick={logout}
+          className="card-elevated p-4 w-full flex items-center gap-3 text-red-500">
+          <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
+            <LogOut className="w-4 h-4" />
+          </div>
+          <span className="font-display font-bold text-sm">Logout</span>
         </button>
       </div>
 
       {/* Edit Modal */}
-      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Profile">
+      <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title="Edit Profile">
         <div className="space-y-4">
-          <Input
-            label="Company / Name"
-            value={formData.name}
-            onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
-          />
+          <Input label="Company / Name" value={form.name}  onChange={set('name')} />
+          <Input label="Email" type="email" value={form.email} onChange={set('email')} />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">About</label>
-            <textarea
-              value={formData.bio}
-              onChange={(e) => setFormData(p => ({ ...p, bio: e.target.value }))}
-              rows={3}
-              className="input"
-              placeholder="Tell candidates about your company..."
-            />
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5"
+              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>About</label>
+            <textarea value={form.bio} onChange={set('bio')} rows={3} className="input"
+              placeholder="Tell candidates about your company..." />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Area"
-              value={formData.area}
-              onChange={(e) => setFormData(p => ({ ...p, area: e.target.value }))}
-            />
-            <Input
-              label="City"
-              value={formData.city}
-              onChange={(e) => setFormData(p => ({ ...p, city: e.target.value }))}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Area"  value={form.area}  onChange={set('area')} />
+            <Input label="City"  value={form.city}  onChange={set('city')} />
           </div>
-          <Input
-            label="State"
-            value={formData.state}
-            onChange={(e) => setFormData(p => ({ ...p, state: e.target.value }))}
-          />
-          <Button fullWidth loading={loading} onClick={handleUpdateProfile}>
-            Save Changes
-          </Button>
+          <Input label="State" value={form.state} onChange={set('state')} />
+          <button onClick={handleSave} disabled={loading}
+            className="btn-primary w-full py-3.5 text-sm" style={{ borderRadius: '10px' }}>
+            {loading
+              ? <span className="flex items-center gap-2 justify-center">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </span>
+              : 'Save Changes'
+            }
+          </button>
         </div>
       </Modal>
     </div>

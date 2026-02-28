@@ -4,227 +4,167 @@ import { jobService } from '../../services/jobService';
 import { skillService } from '../../services/skillService';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
-import Button from '../../components/ui/Button';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import toast from 'react-hot-toast';
+
+const DURATION_OPTIONS = [
+  { value: '1 day',         label: '1 Day' },
+  { value: '1 week',        label: '1 Week' },
+  { value: '2 weeks',       label: '2 Weeks' },
+  { value: '1 month',       label: '1 Month' },
+  { value: '3 months',      label: '3 Months' },
+  { value: '6 months',      label: '6 Months' },
+  { value: '1 year',        label: '1 Year' },
+  { value: 'Permanent',     label: 'Permanent' },
+  { value: 'Project based', label: 'Project Based' },
+];
+
+const Section = ({ title, children }) => (
+  <div className="card-elevated p-4 space-y-4">
+    <h3 className="font-display font-bold text-slate-800 text-sm">{title}</h3>
+    {children}
+  </div>
+);
 
 const EditJob = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [skills, setSkills]   = useState([]);
-  const [formData, setFormData] = useState({
-    title:                '',
-    description:          '',
-    skillId:              '',
-    jobType:              'full_time',
-    salaryMin:            '',
-    salaryMax:            '',
-    salaryType:           'monthly',
-    area:                 '',
-    city:                 '',
-    state:                '',
-    vacancies:            1,
-    availabilityRequired: 'flexible',
-    experienceRequired:   0,
-    jobDuration:          '',    // ← added
-    isActive:             true,
+  const [form, setForm] = useState({
+    title: '', description: '', skillId: '', jobType: 'full_time',
+    salaryMin: '', salaryMax: '', salaryType: 'monthly',
+    area: '', city: '', state: '', vacancies: 1,
+    availabilityRequired: 'flexible', experienceRequired: 0,
+    jobDuration: '', isActive: true,
   });
 
-  useEffect(() => { loadData(); }, [id]);
+  useEffect(() => {
+    Promise.all([jobService.getJob(id), skillService.getSkills()])
+      .then(([job, { skills }]) => {
+        setSkills(skills);
+        setForm({
+          title: job.title || '', description: job.description || '',
+          skillId: job.skill_id || '', jobType: job.job_type || 'full_time',
+          salaryMin: job.salary_min || '', salaryMax: job.salary_max || '',
+          salaryType: job.salary_type || 'monthly',
+          area: job.area || '', city: job.city || '', state: job.state || '',
+          vacancies: job.vacancies || 1,
+          availabilityRequired: job.availability_required || 'flexible',
+          experienceRequired: job.experience_required || 0,
+          jobDuration: job.job_duration || '', isActive: job.is_active,
+        });
+      })
+      .catch(() => { toast.error('Failed to load job'); navigate('/employer/jobs'); })
+      .finally(() => setLoading(false));
+  }, [id]);
 
-  const loadData = async () => {
-    try {
-      const [jobData, skillsData] = await Promise.all([
-        jobService.getJob(id),
-        skillService.getSkills(),
-      ]);
-
-      setSkills(skillsData.skills);
-      setFormData({
-        title:                jobData.title                 || '',
-        description:          jobData.description           || '',
-        skillId:              jobData.skill_id              || '',
-        jobType:              jobData.job_type              || 'full_time',
-        salaryMin:            jobData.salary_min            || '',
-        salaryMax:            jobData.salary_max            || '',
-        salaryType:           jobData.salary_type           || 'monthly',
-        area:                 jobData.area                  || '',
-        city:                 jobData.city                  || '',
-        state:                jobData.state                 || '',
-        vacancies:            jobData.vacancies             || 1,
-        availabilityRequired: jobData.availability_required || 'flexible',
-        experienceRequired:   jobData.experience_required   || 0,
-        jobDuration:          jobData.job_duration          || '',   // ← added
-        isActive:             jobData.is_active,
-      });
-    } catch (error) {
-      toast.error('Failed to load job');
-      navigate('/employer/jobs');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const set = (key) => (e) => setFormData(prev => ({ ...prev, [key]: e.target.value }));
+  const set  = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await jobService.updateJob(id, formData);
-      toast.success('Job updated successfully');
+      await jobService.updateJob(id, form);
+      toast.success('Job updated!');
       navigate('/employer/jobs');
-    } catch (error) {
-      toast.error('Failed to update job');
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error('Failed to update job'); }
+    finally { setSaving(false); }
   };
 
   if (loading) return <LoadingSpinner fullScreen />;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <form onSubmit={handleSubmit} className="px-4 py-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 pb-20">
+      <form onSubmit={handleSubmit} className="px-4 py-5 space-y-4">
 
-        {/* Job Details */}
-        <div className="card p-4 space-y-4">
-          <h3 className="font-semibold text-gray-900">Job Details</h3>
-
-          <Input label="Job Title *" value={formData.title} onChange={set('title')} />
-
+        <Section title=" Job Details">
+          <Input label="Job Title *" value={form.title} onChange={set('title')} />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={set('description')}
-              rows={4}
-              className="input"
-            />
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5"
+              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Description</label>
+            <textarea value={form.description} onChange={set('description')} rows={4} className="input" />
           </div>
-
-          <Select
-            label="Required Skill"
-            value={formData.skillId}
-            onChange={set('skillId')}
-            options={skills.map(s => ({ value: s.id, label: s.name }))}
-          />
-
-          <Select
-            label="Job Type"
-            value={formData.jobType}
-            onChange={set('jobType')}
+          <Select label="Required Skill" value={form.skillId} onChange={set('skillId')}
+            options={skills.map(s => ({ value: s.id, label: s.name }))} placeholder="Select skill" />
+          <Select label="Job Type" value={form.jobType} onChange={set('jobType')}
             options={[
               { value: 'full_time',  label: 'Full Time' },
               { value: 'part_time',  label: 'Part Time' },
               { value: 'contract',   label: 'Contract' },
               { value: 'daily_wage', label: 'Daily Wage' },
-            ]}
-          />
-
-          {/* Job Duration — added */}
-          <Select
-            label="Job Duration"
-            value={formData.jobDuration}
-            onChange={set('jobDuration')}
-            placeholder="Select duration"
-            options={[
-              { value: '1 day',         label: '1 Day' },
-              { value: '1 week',        label: '1 Week' },
-              { value: '2 weeks',       label: '2 Weeks' },
-              { value: '1 month',       label: '1 Month' },
-              { value: '3 months',      label: '3 Months' },
-              { value: '6 months',      label: '6 Months' },
-              { value: '1 year',        label: '1 Year' },
-              { value: 'Permanent',     label: 'Permanent' },
-              { value: 'Project based', label: 'Project Based' },
-            ]}
-          />
+            ]} />
+          <Select label="Job Duration" value={form.jobDuration} onChange={set('jobDuration')}
+            placeholder="Select duration" options={DURATION_OPTIONS} />
 
           {/* Active toggle */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <span className="font-medium">Job Active</span>
-            <button
-              type="button"
-              onClick={() => setFormData(prev => ({ ...prev, isActive: !prev.isActive }))}
-              className={`w-12 h-6 rounded-full transition-colors ${formData.isActive ? 'bg-primary-500' : 'bg-gray-300'}`}
-            >
-              <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${formData.isActive ? 'translate-x-6' : 'translate-x-0.5'}`} />
+          <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl">
+            <div>
+              <p className="font-display font-bold text-slate-800 text-sm">Job Active</p>
+              <p className="text-xs text-slate-400 mt-0.5">{form.isActive ? 'Visible to candidates' : 'Hidden from search'}</p>
+            </div>
+            <button type="button"
+              onClick={() => setForm(p => ({ ...p, isActive: !p.isActive }))}
+              className="w-12 h-6 rounded-full transition-colors flex-shrink-0"
+              style={{ background: form.isActive ? '#2563eb' : '#e2e8f0' }}>
+              <div className="w-5 h-5 bg-white rounded-full shadow transition-transform"
+                style={{ transform: form.isActive ? 'translateX(26px)' : 'translateX(2px)' }} />
             </button>
           </div>
-        </div>
+        </Section>
 
-        {/* Salary */}
-        <div className="card p-4 space-y-4">
-          <h3 className="font-semibold text-gray-900">Salary</h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input type="number" label="Minimum (₹)" value={formData.salaryMin} onChange={set('salaryMin')} />
-            <Input type="number" label="Maximum (₹)" value={formData.salaryMax} onChange={set('salaryMax')} />
+        <Section title=" Salary">
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="number" label="Minimum (₹)" value={form.salaryMin} onChange={set('salaryMin')} />
+            <Input type="number" label="Maximum (₹)" value={form.salaryMax} onChange={set('salaryMax')} />
           </div>
-
-          <Select
-            label="Salary Type"
-            value={formData.salaryType}
-            onChange={set('salaryType')}
+          <Select label="Salary Type" value={form.salaryType} onChange={set('salaryType')}
             options={[
               { value: 'hourly',  label: 'Per Hour' },
               { value: 'daily',   label: 'Per Day' },
               { value: 'weekly',  label: 'Per Week' },
               { value: 'monthly', label: 'Per Month' },
-            ]}
-          />
-        </div>
+            ]} />
+        </Section>
 
-        {/* Location */}
-        <div className="card p-4 space-y-4">
-          <h3 className="font-semibold text-gray-900">Location</h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Area"  value={formData.area}  onChange={set('area')} />
-            <Input label="City"  value={formData.city}  onChange={set('city')} />
+        <Section title=" Location">
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Area"  value={form.area}  onChange={set('area')} />
+            <Input label="City"  value={form.city}  onChange={set('city')} />
           </div>
-          <Input label="State" value={formData.state} onChange={set('state')} />
-        </div>
+          <Input label="State" value={form.state} onChange={set('state')} />
+        </Section>
 
-        {/* Requirements */}
-        <div className="card p-4 space-y-4">
-          <h3 className="font-semibold text-gray-900">Requirements</h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="number" label="Vacancies"
-              value={formData.vacancies}
-              onChange={(e) => setFormData(prev => ({ ...prev, vacancies: parseInt(e.target.value) || 1 }))}
-              min={1}
-            />
-            <Input
-              type="number" label="Experience (years)"
-              value={formData.experienceRequired}
-              onChange={(e) => setFormData(prev => ({ ...prev, experienceRequired: parseInt(e.target.value) || 0 }))}
-              min={0}
-            />
+        <Section title=" Requirements">
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="number" label="Vacancies"          value={form.vacancies}          onChange={e => setForm(p => ({ ...p, vacancies: parseInt(e.target.value) || 1 }))} min={1} />
+            <Input type="number" label="Experience (years)" value={form.experienceRequired} onChange={e => setForm(p => ({ ...p, experienceRequired: parseInt(e.target.value) || 0 }))} min={0} />
           </div>
-
-          <Select
-            label="Availability Required"
-            value={formData.availabilityRequired}
-            onChange={set('availabilityRequired')}
+          <Select label="Availability Required" value={form.availabilityRequired} onChange={set('availabilityRequired')}
             options={[
               { value: 'immediate',    label: 'Immediately' },
               { value: 'within_week',  label: 'Within a week' },
               { value: 'within_month', label: 'Within a month' },
               { value: 'flexible',     label: 'Flexible' },
-            ]}
-          />
-        </div>
+            ]} />
+        </Section>
 
-        <div className="flex space-x-3">
-          <Button variant="secondary" fullWidth onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit" fullWidth loading={saving}>Save Changes</Button>
+        <div className="flex gap-3">
+          <button type="button" onClick={() => navigate(-1)}
+            className="btn-secondary flex-1 py-3.5 text-sm" style={{ borderRadius: '12px' }}>
+            Cancel
+          </button>
+          <button type="submit" disabled={saving}
+            className="btn-primary flex-1 py-3.5 text-sm" style={{ borderRadius: '12px' }}>
+            {saving
+              ? <span className="flex items-center gap-2 justify-center">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </span>
+              : 'Save Changes'
+            }
+          </button>
         </div>
       </form>
     </div>
