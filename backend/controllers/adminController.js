@@ -194,7 +194,6 @@ const updateSkill = async (req, res) => {
 
 const getQuestions = async (req, res) => {
   try {
-    const { page, limit, offset } = getPagination(req.query.page, req.query.limit);
     const skillId = req.query.skillId ? Number(req.query.skillId) : null;
 
     let query = `
@@ -205,21 +204,16 @@ const getQuestions = async (req, res) => {
     const params = [];
 
     if (skillId) { query += ` AND e.skill_id = ?`; params.push(skillId); }
-    query += ` ORDER BY e.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+    query += ` ORDER BY s.name ASC, e.id ASC`;   // ← LIMIT HATA DIYA
 
     const [questions] = await db.query(query, params);
-
-    let countQuery    = 'SELECT COUNT(*) as count FROM exams WHERE 1=1';
-    const countParams = [];
-    if (skillId) { countQuery += ` AND skill_id = ?`; countParams.push(skillId); }
-    const [total] = await db.query(countQuery, countParams);
-
-    res.json({ questions, pagination: { page, limit, total: total[0].count, pages: Math.ceil(total[0].count / limit) } });
+    res.json({ questions, total: questions.length });
   } catch (error) {
     console.error('Get Questions Error:', error);
     res.status(500).json({ error: 'Failed to get questions' });
   }
 };
+
 
 const createQuestion = async (req, res) => {
   try {
